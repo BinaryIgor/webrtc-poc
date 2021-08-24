@@ -10,16 +10,16 @@ import java.util.Optional;
 public class SignalingServerAuthenticator  {
 
     private final Map<String, Long> secretsIds = Map.of(
-            "A", 1L,
-            "B", 2L,
-            "C", 3L,
-            "D", 4L,
-            "E", 5L,
-            "F", 6L,
-            "G", 7L,
-            "H", 8L,
-            "I", 9L,
-            "J", 10L);
+            "${A}", 1L,
+            "${B}", 2L,
+            "${C}", 3L,
+            "${D}", 4L,
+            "${E}", 5L,
+            "${F}", 6L,
+            "${G}", 7L,
+            "${H}", 8L,
+            "${I}", 9L,
+            "${J}", 10L);
     private Callback onAuthCallback;
 
     public void authenticate(WebSocketBase socket, String secret) {
