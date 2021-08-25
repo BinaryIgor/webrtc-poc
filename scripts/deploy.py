@@ -3,6 +3,7 @@ from os import path
 import os
 import subprocess
 import shutil
+import re
 
 FRONTEND = "frontend"
 FAKE_CERTS = "fake-certs"
@@ -16,15 +17,24 @@ DEPLOY_LOCAL_ROOT_DIR = path.join(ROOT_DIR, "_deploy")
 
 EXECUTABLE_JAR_NAME = "webrtc-poc-jar-with-dependencies.jar"
 
+SERVER_HOST = "server_host"
 HTTP_PORT = "http_port"
 USE_HTTPS = "use_https"
 HTTPS_CERT_PATH = "https_certs_path"
 HTTPS_KEY_PATH = "https_key_path"
 
+JS_VAR_PATTERN = re.compile("const (.*)=")
+JS_CONFIG_TO_REPLACE_SIGNAL_SERVER_ENDPOINT = "signalServerEndpoint"
+JS_CONFIG_TO_REPLACE_WEBRTC_CONFIGURATION = "webrtcConfiguration"
+JS_REPLACE_START = "//replace_start"
+JS_REPLACE_END = "//replace_end"
+
 
 def cmd_args():
     parser = ArgumentParser()
-    parser.add_argument(f'--{HTTP_PORT}', type=int)
+    parser.add_argument(f'--{SERVER_HOST}', help="Host or ip address or server, where system will be deployed. Default: localhost",
+                        default="localhost")
+    parser.add_argument(f'--{HTTP_PORT}')
     parser.add_argument(f'--{USE_HTTPS}', action="store_true",
                         help=f"""
         Whether to use https. If {HTTPS_CERT_PATH} and {HTTPS_KEY_PATH} are not specified, fake, selfsigned certificate and key will be used
@@ -44,8 +54,75 @@ def execute_script(script):
         raise Exception(f'Fail to run, return code: {code}')
 
 
+def replace_js_config(js_path, server_host, server_port, use_https):
+    ws_prefix = "wss" if use_https else "ws"
+    new_signal_server_endpoint = f"const signalServerEndpoint = '{ws_prefix}://{server_host}:{server_port}';"
+
+    # TODO: proper webrtc config
+    new_webrtc_configuration = f"""const webrtcConfiguration = {{
+        iceServers: [
+            {{
+                urls: [
+                    "stun:stun.l.google.com:19302",
+                    "stun:stun1.l.google.com:19302"
+                ]
+            }}
+        ],
+    }};"""
+
+    js_config_path = path.join(js_path, "config.js")
+    new_js_config_lines = new_js_config(js_config_path, new_signal_server_endpoint, new_webrtc_configuration)
+
+    with open(js_config_path, "w") as f:
+        f.writelines(new_js_config_lines)
+
+
+def new_js_config(js_config_path, new_signal_server_endpoint, new_webrtc_configuration):
+    js_config_lines = []
+
+    with open(js_config_path) as f:
+        read_to_replace = False
+        to_replace_lines = []
+
+        for l in f.readlines():
+            if not read_to_replace and l.startswith(JS_REPLACE_START):
+                read_to_replace = True
+            elif read_to_replace and l.startswith(JS_REPLACE_END):
+                var_name = to_replace_var_nam_in_js_file(
+                    js_config_path, to_replace_lines)
+                if var_name == JS_CONFIG_TO_REPLACE_SIGNAL_SERVER_ENDPOINT:
+                    js_config_lines.append(new_signal_server_endpoint)
+                elif var_name == JS_CONFIG_TO_REPLACE_WEBRTC_CONFIGURATION:
+                    js_config_lines.append(new_webrtc_configuration)
+                else:
+                    print(
+                        f"Want to replace unknown variable {var_name}, skipping")
+
+                to_replace_lines = []
+                read_to_replace = False
+            elif read_to_replace:
+                to_replace_lines.append(l)
+            else:
+                js_config_lines.append(l)
+
+    return js_config_lines
+
+
+def to_replace_var_nam_in_js_file(js_config_path, to_replace_lines):
+    to_replace_string = "\n".join(to_replace_lines)
+    match = re.search(JS_VAR_PATTERN, to_replace_string)
+    if not match:
+        raise Exception(
+            f"Failure to find js var in :{to_replace_string} str from {js_config_path} file")
+    return match.group(1).strip()
+
+
 cmd = cmd_args()
-print(f"Root dir: {ROOT_DIR}")
+server_host = cmd[SERVER_HOST]
+use_https = cmd.get(USE_HTTPS)
+http_port = cmd.get(HTTP_PORT)
+if not http_port:
+    http_port = 4444 if use_https else 8888
 
 print(f"Building package, result will be available in {DEPLOY_LOCAL_ROOT_DIR}")
 print("Preparing deploy dir...")
@@ -68,10 +145,13 @@ shutil.copy(path.join(CODE_DIR, "target", EXECUTABLE_JAR_NAME),
 print()
 print(f"Copying frontend from {FRONTEND_DIR}...")
 
-shutil.copytree(FRONTEND_DIR, path.join(DEPLOY_LOCAL_ROOT_DIR, FRONTEND))
+frontend_target = path.join(DEPLOY_LOCAL_ROOT_DIR, FRONTEND)
 
-http_port = cmd.get(HTTP_PORT)
-use_https = cmd.get(USE_HTTPS)
+shutil.copytree(FRONTEND_DIR, frontend_target)
+
+print(f"Frontend copied, replacing js config...")
+replace_js_config(frontend_target, server_host, http_port, use_https)
+print("Js config replaced")
 
 if use_https:
     print()
