@@ -198,7 +198,7 @@ public class SignalingServer {
 
             destination.writeTextMessage(message).onFailure(t -> log.error("Fail to send message to client", t));
         } catch (Exception e) {
-            log.error("Problem while handling peer event");
+            log.error("Problem while handling peer event", e);
         }
     }
 

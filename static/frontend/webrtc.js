@@ -39,7 +39,7 @@ const streamConstraints = {
     audio: true
 };
 const peerConnections = new Map();
-const signalServerEndpoint = "wss://localhost:5555";
+const signalServerEndpoint = "ws://localhost:8080";
 const webrtcConfiguration = {
     iceServers: [
         {

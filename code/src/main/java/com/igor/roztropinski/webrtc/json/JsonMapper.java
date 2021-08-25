@@ -1,10 +1,13 @@
 package com.igor.roztropinski.webrtc.json;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.deser.impl.CreatorCandidate;
+import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 
 import java.util.List;
 
@@ -22,6 +25,8 @@ public class JsonMapper {
         MAPPER.setVisibility(PropertyAccessor.IS_GETTER, JsonAutoDetect.Visibility.NONE);
 
         MAPPER.registerModule(new SocketMessageModule());
+        //For all args constructor to work with jackson
+        MAPPER.registerModule(new ParameterNamesModule(JsonCreator.Mode.PROPERTIES));
     }
 
     public static String json(Object value) {
