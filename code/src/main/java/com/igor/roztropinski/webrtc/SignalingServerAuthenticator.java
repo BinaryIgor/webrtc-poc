@@ -32,7 +32,6 @@ public class SignalingServerAuthenticator  {
     }
 
     public void onAuthenticated(Callback callback) {
-        log.info("Setting up callback {}", callback);
         onAuthCallback = callback;
     }
 

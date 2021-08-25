@@ -7,8 +7,6 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.StaticHandler;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,7 +36,7 @@ public class WebrtcApp {
 
         var staticRootDir = envVariable(STATIC_ROOT_DIR);
         var useHttps = Boolean.parseBoolean(envVariable(USE_HTTPS, "false"));
-        var httpServerPort = Integer.parseInt(envVariable(HTTP_SERVER_PORT, useHttps ? "443" : "8080"));
+        var httpServerPort = Integer.parseInt(envVariable(HTTP_SERVER_PORT, useHttps ? "4444" : "8888"));
 
         String httpsCertPath;
         String httpsKeyPath;
