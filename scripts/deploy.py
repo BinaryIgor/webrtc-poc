@@ -1,3 +1,6 @@
+
+import secrets
+import string
 from argparse import ArgumentParser
 from os import path
 import os
@@ -29,6 +32,8 @@ JS_CONFIG_TO_REPLACE_WEBRTC_CONFIGURATION = "webrtcConfiguration"
 JS_REPLACE_START = "//replace_start"
 JS_REPLACE_END = "//replace_end"
 
+SECRETS_CHARACTERS = f'{string.ascii_letters}{string.digits}'
+SECRETS_LENGTH = 64
 
 def cmd_args():
     parser = ArgumentParser()
@@ -54,6 +59,17 @@ def execute_script(script):
         raise Exception(f'Fail to run, return code: {code}')
 
 
+def secure_index_html_access(html_path, users_access=None):
+    secret_index_html = f'{new_secret()}.html'
+    os.rename(path.join(html_path, "index.html"), path.join(html_path, secret_index_html))
+
+
+
+def new_secret():
+    characters = list(SECRETS_CHARACTERS)
+    return ''.join(secrets.choice(characters) for _ in range(SECRETS_LENGTH))
+
+
 def replace_js_config(js_path, server_host, server_port, use_https):
     ws_prefix = "wss" if use_https else "ws"
     new_signal_server_endpoint = f"const signalServerEndpoint = '{ws_prefix}://{server_host}:{server_port}';"
@@ -71,7 +87,8 @@ def replace_js_config(js_path, server_host, server_port, use_https):
     }};"""
 
     js_config_path = path.join(js_path, "config.js")
-    new_js_config_lines = new_js_config(js_config_path, new_signal_server_endpoint, new_webrtc_configuration)
+    new_js_config_lines = new_js_config(
+        js_config_path, new_signal_server_endpoint, new_webrtc_configuration)
 
     with open(js_config_path, "w") as f:
         f.writelines(new_js_config_lines)
@@ -152,6 +169,9 @@ shutil.copytree(FRONTEND_DIR, frontend_target)
 print(f"Frontend copied, replacing js config...")
 replace_js_config(frontend_target, server_host, http_port, use_https)
 print("Js config replaced")
+
+print("Securing conference access by randomizing index.html...")
+secure_index_html_access(frontend_target)
 
 if use_https:
     print()
