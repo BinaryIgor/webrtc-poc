@@ -1,4 +1,5 @@
 import { VideoGridLayout } from "./video-grid-layout.js";
+import { CONFIG } from "./config.js";
 
 const signalServerConnectionStatus = document.getElementById("signalServerConnection");
 const userSelect = document.getElementById("userSelect");
@@ -39,17 +40,6 @@ const streamConstraints = {
     audio: true
 };
 const peerConnections = new Map();
-const signalServerEndpoint = "ws://localhost:8080";
-const webrtcConfiguration = {
-    iceServers: [
-        {
-            urls: [ 
-                "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302"
-            ]
-        }
-    ],
-};
 
 let user;
 let authenticated = false;
@@ -93,7 +83,7 @@ function connectToSignalServer() {
         updateSignalServerConnectionStatus(OFF);
     }
 
-    signalServerSocket = new WebSocket(signalServerEndpoint);
+    signalServerSocket = new WebSocket(CONFIG.signalServerEndpoint);
 
     signalServerSocket.onopen = () => {
         alert("SignalServerConnection established, sending credentials");
@@ -332,7 +322,7 @@ function setupPeerConnections(peers) {
     }
 
     if (initiateOffer) {
-        console.log("RTCPeerConnection configuration: ", webrtcConfiguration);
+        console.log("RTCPeerConnection configuration: ", CONFIG.webrtcConfiguration);
         console.log("Peers to connect: ", peers);
     }
 
@@ -389,7 +379,7 @@ function closePeer(peerId, peerConnection) {
 }
 
 function newPeerConnection(peerId) {
-    const pc = new RTCPeerConnection(webrtcConfiguration);
+    const pc = new RTCPeerConnection(CONFIG.webrtcConfiguration);
 
     pc.onicecandidate = e => {
         try {
@@ -492,7 +482,7 @@ function hangup() {
     hangupButton.disabled = true;
     callButton.disabled = false;
 
-    videoContainer.refresh();
+    videoGridLayout.refresh();
     remoteContainerParent.classList.add(NO_DISPLAY_CLASS);
 }
 
