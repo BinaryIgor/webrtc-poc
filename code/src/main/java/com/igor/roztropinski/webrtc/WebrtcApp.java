@@ -58,9 +58,11 @@ public class WebrtcApp {
         vertx.exceptionHandler(e -> log.error("There was a problem", e));
         router.route().failureHandler(r -> log.error("Failed on router", r.failure()));
 
+        log.info("Setting up http server");
         var httpServerOptions = new HttpServerOptions()
                 .setPort(httpServerPort);
         if (useHttps) {
+            log.info("Setting up https");
             setupHttps(httpServerOptions, httpsCertPath, httpsKeyPath);
         }
         var httpServer = vertx.createHttpServer(httpServerOptions);
@@ -73,6 +75,8 @@ public class WebrtcApp {
         httpServer.requestHandler(router);
 
         httpServer.listen();
+
+        log.info("Signal server is running!");
     }
 
     private static StaticHandler staticHandler(String root) {

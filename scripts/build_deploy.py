@@ -33,7 +33,10 @@ JS_REPLACE_START = "//replace_start"
 JS_REPLACE_END = "//replace_end"
 
 SECRETS_CHARACTERS = f'{string.ascii_letters}{string.digits}'
-SECRETS_LENGTH = 64
+SECRETS_LENGTH = 48
+PARTICIPANT_SECRET_PATTERN = re.compile("\\${(.*)}")
+PARTICIPANT_ID_PATTERN = re.compile(">(.*)<")
+
 
 def cmd_args():
     parser = ArgumentParser()
@@ -59,10 +62,44 @@ def execute_script(script):
         raise Exception(f'Fail to run, return code: {code}')
 
 
-def secure_index_html_access(html_path, users_access=None):
-    secret_index_html = f'{new_secret()}.html'
-    os.rename(path.join(html_path, "index.html"), path.join(html_path, secret_index_html))
+def new_participants_access():
+    return {(i + 1): new_secret() for i in range(10)}
 
+
+def participants_access_to_export(participants_access):
+    ids_secrets = []
+
+    for id, secret in participants_access.items():
+        ids_secrets.append(f'{id}={secret}')
+
+    return ",".join(ids_secrets)
+
+
+def secure_index_html_access(html_path, participants_access):
+    new_path = path.join(html_path, f'{new_secret()}.html')
+
+    os.rename(path.join(html_path, "index.html"), new_path)
+
+    new_lines = []
+    with open(new_path) as f:
+        for l in f.readlines():
+            s_match = re.search(PARTICIPANT_SECRET_PATTERN, l)
+            id_match = re.search(PARTICIPANT_ID_PATTERN, l)
+
+            if s_match and id_match:
+                secret_placeholder = s_match.group()
+                id_value = int(id_match.group(1))
+
+                secret_value = participants_access[id_value]
+
+                replaced_line = l.replace(secret_placeholder, secret_value)
+
+                new_lines.append(replaced_line)
+            else:
+                new_lines.append(l)
+
+    with open(new_path, "w") as f:
+        f.writelines(new_lines)
 
 
 def new_secret():
@@ -160,6 +197,10 @@ shutil.copy(path.join(CODE_DIR, "target", EXECUTABLE_JAR_NAME),
             path.join(DEPLOY_LOCAL_ROOT_DIR, EXECUTABLE_JAR_NAME))
 
 print()
+print("Generating new participants access...")
+participants_access = new_participants_access()
+
+print()
 print(f"Copying frontend from {FRONTEND_DIR}...")
 
 frontend_target = path.join(DEPLOY_LOCAL_ROOT_DIR, FRONTEND)
@@ -171,7 +212,7 @@ replace_js_config(frontend_target, server_host, http_port, use_https)
 print("Js config replaced")
 
 print("Securing conference access by randomizing index.html...")
-secure_index_html_access(frontend_target)
+secure_index_html_access(frontend_target, participants_access)
 
 if use_https:
     print()
@@ -200,6 +241,7 @@ export_http_server_port = f'export WEBRTC_HTTP_SERVER_PORT="{http_port}"' if htt
 export_use_https = 'export WEBRTC_USE_HTTPS=true' if use_https else ""
 export_https_cert_path = f'export WEBRTC_HTTPS_CERT_PATH="{https_cert_path}"' if https_cert_path else ""
 export_https_key_path = f'export WEBRTC_HTTPS_KEY_PATH="{https_key_path}"' if https_key_path else ""
+export_participants_access = f'export WEBRTC_PARTICIPANTS_ACCESS="{participants_access_to_export(participants_access)}"'
 
 executable_script = f"""
 #!bin/bash
@@ -214,6 +256,7 @@ export WEBRTC_STATIC_ROOT_DIR="${{to_package_dir}}{FRONTEND}"
 {export_use_https}
 {export_https_cert_path}
 {export_https_key_path}
+{export_participants_access}
 
 jar_path=${{to_package_dir}}{EXECUTABLE_JAR_NAME}
 
