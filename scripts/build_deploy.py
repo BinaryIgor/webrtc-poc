@@ -13,6 +13,9 @@ FAKE_CERTS = "fake-certs"
 CERTS = "certs"
 WEBRTC_POC = "webrtc-poc"
 COTURN = "coturn"
+COTURN_CONFIG_USER_KEY = "user"
+
+MAIN_STUN_SERVER = "stun:stun.l.google.com:19302"
 
 ROOT_DIR = path.split(os.getcwd())[0]
 
@@ -27,6 +30,7 @@ EXECUTABLE_JAR_NAME = "webrtc-poc-jar-with-dependencies.jar"
 
 SERVER_HOST = "server_host"
 HTTP_PORT = "http_port"
+COTURN_PORT = "coturn_port"
 USE_HTTPS = "use_https"
 HTTPS_CERT_PATH = "https_certs_path"
 HTTPS_KEY_PATH = "https_key_path"
@@ -48,6 +52,8 @@ def cmd_args():
     parser.add_argument(f'--{SERVER_HOST}', help="Host or ip address or server, where system will be deployed. Default: localhost",
                         default="localhost")
     parser.add_argument(f'--{HTTP_PORT}')
+    parser.add_argument(f'--{COTURN_PORT}', default=3478,
+                        help="Port of the coturn server, which serves as both STUN and TURN server")
     parser.add_argument(f'--{USE_HTTPS}', action="store_true",
                         help=f"""
         Whether to use https. If {HTTPS_CERT_PATH} and {HTTPS_KEY_PATH} are not specified, fake, selfsigned certificate and key will be used
@@ -65,6 +71,24 @@ def execute_script(script):
     """, shell=True)
     if code != 0:
         raise Exception(f'Fail to run, return code: {code}')
+
+
+def new_coturn_credentials():
+    return new_secret(), new_secret()
+
+
+def replace_coturn_credentials(config_path, user, password):
+    with open(config_path) as f:
+        new_lines = []
+        for l in f.readlines():
+            if l.startswith(COTURN_CONFIG_USER_KEY):
+                new_credentials = f"{COTURN_CONFIG_USER_KEY}={user}:{password}"
+                new_lines.append(new_credentials)
+            else:
+                new_lines.append(l)
+
+    with open(config_path, "w") as f:
+        f.writelines(new_lines)
 
 
 def new_participants_access():
@@ -112,18 +136,22 @@ def new_secret():
     return ''.join(secrets.choice(characters) for _ in range(SECRETS_LENGTH))
 
 
-def replace_js_config(js_path, server_host, server_port, use_https):
+def replace_js_config(js_path, server_host, server_port, use_https, turn_user, turn_password, coturn_port):
     ws_prefix = "wss" if use_https else "ws"
     new_signal_server_endpoint = f"const signalServerEndpoint = '{ws_prefix}://{server_host}:{server_port}';"
 
-    # TODO: proper webrtc config
     new_webrtc_configuration = f"""const webrtcConfiguration = {{
         iceServers: [
             {{
-                urls: [
-                    "stun:stun.l.google.com:19302",
-                    "stun:stun1.l.google.com:19302"
-                ]
+                url: {MAIN_STUN_SERVER}
+            }},
+            {{
+                url: "stun://{server_host}:{coturn_port}
+            }},
+            {{
+                url: "turn://{server_host}:{coturn_port},
+                username: "{turn_user}",
+                credential: "{turn_password}"
             }}
         ],
     }};"""
@@ -183,6 +211,8 @@ http_port = cmd.get(HTTP_PORT)
 if not http_port:
     http_port = 4444 if use_https else 8888
 
+coturn_port = cmd[COTURN_PORT]
+
 print(f"Building package, result will be available in {DEPLOY_LOCAL_ROOT_DIR}")
 print("Preparing deploy dir...")
 
@@ -200,6 +230,11 @@ print()
 print(f"Copying {COTURN} Dockerfiles...")
 shutil.copytree(path.join(ROOT_DIR, "docker", COTURN),
                 DEPLOY_LOCAL_COTURN_POC_DIR)
+print()
+print("Replacing coturn credentials with random ones...")
+coturn_user, coturn_password = new_coturn_credentials()
+replace_coturn_credentials(path.join(DEPLOY_LOCAL_COTURN_POC_DIR, "coturn.conf"),
+                           user=coturn_user, password=coturn_password)
 
 print()
 print(f"Building {WEBRTC_POC}...")
@@ -224,7 +259,8 @@ frontend_target = path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, FRONTEND)
 shutil.copytree(FRONTEND_DIR, frontend_target)
 
 print(f"Frontend copied, replacing js config...")
-replace_js_config(frontend_target, server_host, http_port, use_https)
+replace_js_config(js_path=frontend_target, server_host=server_host, server_port=http_port, use_https=use_https,
+                  turn_user=coturn_user, turn_password=coturn_password, coturn_port=coturn_port)
 print("Js config replaced")
 
 print("Securing conference access by randomizing index.html...")
@@ -249,6 +285,7 @@ if use_https:
         # TODO:support regular certificates
         pass
 else:
+    os.mkdir(path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, CERTS))
     https_cert_path = None
     https_key_path = None
 

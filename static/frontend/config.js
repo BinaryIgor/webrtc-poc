@@ -1,3 +1,6 @@
+//TODO: randomize this file name/access
+
+
 //replace_start
 const signalServerEndpoint = "ws://localhost:8888";
 //replace_end
