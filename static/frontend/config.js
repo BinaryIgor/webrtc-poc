@@ -4,12 +4,18 @@ const signalServerEndpoint = "ws://localhost:8888";
 
 //replace_start
 const webrtcConfiguration = {
+    iceTransportPolicy: "all",
     iceServers: [
         {
-            urls: [
-                "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302"
-            ]
+            url:"stun:stun.l.google.com:19302"
+        },
+        {
+            url: "stun:localhost:3478"
+        },
+        {
+            url: "turn:localhost:3478",
+            credential: "test123",
+            username: "test"
         }
     ],
 };
