@@ -10,6 +10,9 @@ import re
 
 FRONTEND = "frontend"
 FAKE_CERTS = "fake-certs"
+CERTS = "certs"
+WEBRTC_POC = "webrtc-poc"
+COTURN = "coturn"
 
 ROOT_DIR = path.split(os.getcwd())[0]
 
@@ -17,6 +20,8 @@ CODE_DIR = path.join(ROOT_DIR, "code")
 FRONTEND_DIR = path.join(ROOT_DIR, "static", FRONTEND)
 FAKE_CERTS_DIR = path.join(ROOT_DIR, "static", FAKE_CERTS)
 DEPLOY_LOCAL_ROOT_DIR = path.join(ROOT_DIR, "_deploy")
+DEPLOY_LOCAL_WEBRTC_POC_DIR = path.join(DEPLOY_LOCAL_ROOT_DIR, WEBRTC_POC)
+DEPLOY_LOCAL_COTURN_POC_DIR = path.join(DEPLOY_LOCAL_ROOT_DIR, COTURN)
 
 EXECUTABLE_JAR_NAME = "webrtc-poc-jar-with-dependencies.jar"
 
@@ -186,7 +191,18 @@ if path.exists(DEPLOY_LOCAL_ROOT_DIR):
 
 os.mkdir(DEPLOY_LOCAL_ROOT_DIR)
 
-print("Building SignalServer...")
+print()
+print(f"Copying {WEBRTC_POC} Dockerfiles....")
+shutil.copytree(path.join(ROOT_DIR, "docker", WEBRTC_POC),
+                DEPLOY_LOCAL_WEBRTC_POC_DIR)
+
+print()
+print(f"Copying {COTURN} Dockerfiles...")
+shutil.copytree(path.join(ROOT_DIR, "docker", COTURN),
+                DEPLOY_LOCAL_COTURN_POC_DIR)
+
+print()
+print(f"Building {WEBRTC_POC}...")
 execute_script(f"""
     cd {CODE_DIR}
     mvn clean install
@@ -194,7 +210,7 @@ execute_script(f"""
 
 print("Copying jar to deploy dir...")
 shutil.copy(path.join(CODE_DIR, "target", EXECUTABLE_JAR_NAME),
-            path.join(DEPLOY_LOCAL_ROOT_DIR, EXECUTABLE_JAR_NAME))
+            path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, EXECUTABLE_JAR_NAME))
 
 print()
 print("Generating new participants access...")
@@ -203,7 +219,7 @@ participants_access = new_participants_access()
 print()
 print(f"Copying frontend from {FRONTEND_DIR}...")
 
-frontend_target = path.join(DEPLOY_LOCAL_ROOT_DIR, FRONTEND)
+frontend_target = path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, FRONTEND)
 
 shutil.copytree(FRONTEND_DIR, frontend_target)
 
@@ -224,10 +240,14 @@ if use_https:
             f"{HTTPS_CERT_PATH} or {HTTPS_KEY_PATH} are not set, using fake certs from {FAKE_CERTS_DIR}")
 
         shutil.copytree(FAKE_CERTS_DIR, path.join(
-            DEPLOY_LOCAL_ROOT_DIR, FAKE_CERTS))
+            DEPLOY_LOCAL_WEBRTC_POC_DIR, CERTS))
 
-        https_cert_path = path.join(FAKE_CERTS, "selfsigned.crt")
-        https_key_path = path.join(FAKE_CERTS, "selfsigned.key")
+        https_cert_path = path.join(CERTS, "selfsigned.crt")
+        https_key_path = path.join(CERTS, "selfsigned.key")
+    else:
+        os.mkdir(path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, CERTS))
+        # TODO:support regular certificates
+        pass
 else:
     https_cert_path = None
     https_key_path = None
@@ -266,7 +286,7 @@ exec java -jar "${{jar_path}}"
 print()
 print("Script prepared, copying it to target package")
 
-with open(path.join(DEPLOY_LOCAL_ROOT_DIR, "webrtc-poc.bash"), "w") as f:
+with open(path.join(DEPLOY_LOCAL_WEBRTC_POC_DIR, "webrtc-poc.bash"), "w") as f:
     f.write(executable_script.strip())
 
 print()
