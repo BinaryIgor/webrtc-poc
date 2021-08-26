@@ -143,13 +143,13 @@ def replace_js_config(js_path, server_host, server_port, use_https, turn_user, t
     new_webrtc_configuration = f"""const webrtcConfiguration = {{
         iceServers: [
             {{
-                url: {MAIN_STUN_SERVER}
+                url: "{MAIN_STUN_SERVER}"
             }},
             {{
-                url: "stun://{server_host}:{coturn_port}
+                url: "stun:{server_host}:{coturn_port}"
             }},
             {{
-                url: "turn://{server_host}:{coturn_port},
+                url: "turn:{server_host}:{coturn_port}",
                 username: "{turn_user}",
                 credential: "{turn_password}"
             }}
