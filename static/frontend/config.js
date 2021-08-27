@@ -6,6 +6,7 @@ const signalServerEndpoint = "ws://localhost:8888";
 //replace_end
 
 //replace_start
+//TODO does not work
 const webrtcConfiguration = {
     iceTransportPolicy: "all",
     iceServers: [

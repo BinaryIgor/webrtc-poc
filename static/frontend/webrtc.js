@@ -153,7 +153,7 @@ function handleEvent(from, event, data) {
 
     if (!peerConnections.has(from)) {
         console.log(`No peer connection of ${from} id, skipping`);
-        console.log("ALl connections..." + peerConnections.keys());
+        console.log("All connections..." + peerConnections.keys());
         return;
     }
 
@@ -177,30 +177,30 @@ function noPeerConnections() {
 async function handleOffer(from, offer) {
     const peerConnection = peerConnections.get(from);
     try {
-        console.log("Handling offer...");
+        peerLog(from, "Handling offer...");
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
     } catch (e) {
-        console.log(`Failed to create SDP from remote offer: ${e}`);
+        peerLog(from, `Failed to create SDP from remote offer: ${e}`);
     }
 
     try {
-        console.log("Creating answer...");
+        peerLog(from, "Creating answer...");
         const answer = await peerConnection.createAnswer();
         onCreateAnswerSuccess(peerConnection, from, answer);
     } catch (e) {
-        console.log(`Failed to create answer to offer: ${e}`);
+        perLog(from, `Failed to create answer to offer: ${e}`);
     }
 }
 
 async function onCreateAnswerSuccess(peerConnection, to, answer) {
-    console.log("Created answer:\n", answer.sdp);
-    console.log("Setting is as local description");
+    peerLog(to, "Created answer:\n", answer.sdp);
+    peerLog(to, "Setting is as local description");
     try {
         await peerConnection.setLocalDescription(answer);
-        console.log("Local description from answer created, sending to remote");
+        peerLog(to, "Local description from answer created, sending to remote");
         sendEventToSignalServer(to, ANSWER, answer);
     } catch (e) {
-        console.log(`Failed to set local session description: ${e}`);
+        peerLog(to, `Failed to set local session description: ${e}`);
     }
 }
 
@@ -329,19 +329,19 @@ function setupPeerConnections(peers) {
     try {
         for (const pid of peers) {
             if (pid == user) {
-                console.log("Skipping user peer = " + pid);
+                peerLog(pid, "Skipping user peer");
             } else {
                 if (peerConnections.has(pid)) {
                     console.log(`Connection to ${pid} exists, skipping`);
                     continue;
                 }
                 const peerConnection = newPeerConnection(pid);
-                console.log("Created local peer connection");
+                peerLog(pid, "Created local peer connection");
                 peerConnections.set(pid, peerConnection);
 
-                console.log("Adding streams to peer connection");
+                peerLog(pid, "Adding streams to peer connection");
                 localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
-                console.log("Added local stream to peer connection");
+                peerLog(pid, "Added local stream to peer connection");
 
                 if (initiateOffer) {
                     createOffer(pid, peerConnection);
@@ -367,7 +367,7 @@ function closeInactiveConnections(peers) {
     }
 
     toClose.forEach(pid => {
-        console.log(`Inactive peer (${pid}), closing`);
+        peerLog(pid, 'Closing inactive peer');
         closePeer(pid, peerConnections.get(pid));
         peerConnections.delete(pid);
     });
@@ -385,30 +385,35 @@ function newPeerConnection(peerId) {
         try {
             const candidate = e.candidate;
             if (candidate) {
-                console.log('Send ICE candidate:\n', e.candidate);
+                peerLog(peerId, 'Send ICE candidate:\n', e.candidate);
                 sendEventToSignalServer(peerId, CANDIDATE, candidate);
             } else {
-                console.log("Skipping null ICE candidate");
+                peerLog(peerId, "Skipping null ICE candidate");
             }
         } catch (e) {
-            console.log(`Failed to send ICE Candidate: ${e}`);
+            peerLog(peerId, `Failed to send ICE Candidate: ${e}`);
         }
     };
 
     pc.oniceconnectionstatechange = e => {
-        console.log(`ICE state change event: ${pc.iceConnectionState}`);
+        peerLog(peerId, `ICE state change event: ${pc.iceConnectionState}`);
     };
 
     const peerVideo = createPeerVideo(peerId);
     pc.ontrack = e => {
-        //For some reason, fired twice
         if (peerVideo.srcObject !== e.streams[0]) {
             peerVideo.srcObject = e.streams[0];
-            console.log('Peer connection received remote stream');
+            peerLog(peerId, 'Peer connection received remote stream');
+        } else {
+            peerLog(peerId, "Peer received same remote stream again, skipping");
         }
     };
 
     return pc;
+}
+
+function peerLog(peerId, message, ...objects) {
+    console.log(`Peer: ${peerId} - ${message}`, ...objects);
 }
 
 function createPeerVideo(peerId) {
@@ -443,23 +448,23 @@ function removePeerVideo(peerId) {
 
 async function createOffer(peerId, peerConnection) {
     try {
-        console.log("Starting to create an offer for " + peerId);
+        peerLog(peerId, "Starting to create an offer");
         const offer = await peerConnection.createOffer();
         await onCreateOfferSuccess(peerId, peerConnection, offer);
     } catch (e) {
-        console.log(`Failed to create SDP: ${e}`);
+        peerLog(peerId, `Failed to create SDP: ${e}`);
     }
 }
 
 async function onCreateOfferSuccess(peerId, peerConnection, offer) {
-    console.log("Offer from peerConnection:\n", offer.sdp);
-    console.log("Setting it as local description");
+    peerLog(peerId, "Offer from peerConnection:\n", offer.sdp);
+    peerLog(peerId, "Setting it as local description");
     try {
         await peerConnection.setLocalDescription(offer);
-        console.log("Offer created, sending it to peer");
+        peerLog(peerId, "Offer created, sending it to peer");
         sendEventToSignalServer(peerId, OFFER, offer);
     } catch (e) {
-        console.log(`Failed to set local session description: ${e}`);
+        peerLog(peerId, `Failed to set local session description: ${e}`);
     }
 }
 
