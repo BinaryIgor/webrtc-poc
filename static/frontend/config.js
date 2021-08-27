@@ -2,7 +2,7 @@
 
 
 //replace_start
-const signalServerEndpoint = "ws://localhost:8888";
+const signalServerEndpoint = "wss://10.11.157.139:4444";
 //replace_end
 
 //replace_start

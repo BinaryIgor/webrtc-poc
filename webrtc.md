@@ -28,3 +28,18 @@
 
 ## Features need
 * every participant - on/off stream
+
+## Experiment
+komputer prywatny, 4 userow, wlacznie, od kazdego video i od jednego audio receiving 350-400kib/s sending 350-400kib/s
+
+video kompa firmowego 640x480 przesyła 220kib/s 
+
+video z komorki 480x640 przesyla 220kib/s
+
+
+
+peak - 800kib/s wysylanego na 6 uzytkownikach
+
+
+
+ustawic preferowana jakosc obrazu, najlepiej ustawic zeby nie maksowalo jakosci obrazu jak jest dobre polaczenie

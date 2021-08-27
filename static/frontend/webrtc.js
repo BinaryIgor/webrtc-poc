@@ -35,8 +35,12 @@ const JOIN_ROOM = "JOIN_ROOM";
 const LEAVE_ROOM = "LEAVE_ROOM";
 const ROOM_MEMBERS = "ROOM_MEMBERS";
 
+//TODO restrict frame rate on...
 const streamConstraints = {
-    video: true,
+    video: {
+        width: { ideal: 480, max: 640 },
+        height: { ideal: 320, max: 480 }
+    },
     audio: true
 };
 const peerConnections = new Map();
@@ -103,7 +107,7 @@ function connectToSignalServer() {
         }
     };
 
-    signalServerSocket.onerror = e => alert(`SignalServerConnection error: ${e}`);
+    signalServerSocket.onerror = e => alert(`SignalServerConnection error: ${JSON.stringify(e)}`);
 
     signalServerSocket.onclose = e => {
         if (e.wasClean) {
@@ -304,7 +308,7 @@ async function call() {
     const audioTracks = localStream.getAudioTracks();
 
     if (videoTracks.length > 0) {
-        console.log(`Using video device: ${videoTracks[0].label}`);
+        console.log(`Using video device: ${videoTracks[0].label}, with settings: `, videoTracks[0].getSettings());
     }
     if (audioTracks.length > 0) {
         console.log(`Using audio device: ${audioTracks[0].label}`);
@@ -413,7 +417,7 @@ function newPeerConnection(peerId) {
 }
 
 function peerLog(peerId, message, ...objects) {
-    console.log(`Peer: ${peerId} - ${message}`, ...objects);
+    console.log(`${new Date().toISOString()}, Peer: ${peerId} - ${message}`, ...objects);
 }
 
 function createPeerVideo(peerId) {
@@ -437,6 +441,11 @@ function createPeerVideo(peerId) {
 
 function peerVideoId(peerId) {
     return `remoteVideo_${peerId}`;
+}
+
+function peerIdFromVideo(video) {
+    const prefixId = video.parentNode.id.split("_");
+    return prefixId[1];
 }
 
 function removePeerVideo(peerId) {
@@ -493,9 +502,10 @@ function hangup() {
 
 function setupRemoteVideosListeners() {
     for (const rv of remoteContainer.querySelectorAll("video")) {
-        rv.onloadedmetadata = () => console.log(`Remote video videoWidth: ${rv.videoWidth}px,  videoHeight: ${rv.videoHeight}px`);
+        const peerId = peerIdFromVideo(rv);
+        rv.onloadedmetadata = () => peerLog(peerId, `Remote video videoWidth: ${rv.videoWidth}px,  videoHeight: ${rv.videoHeight}px`);
         rv.onresize = () => {
-            console.log(`Remote video size changed to ${rv.videoWidth}x${rv.videoHeight} for ${rv.parentNode.id}`);
+            peerLog(peerId, `Remote video size changed to ${rv.videoWidth}x${rv.videoHeight}`);
             //shouldn't we do something more now ?
         };
     }
