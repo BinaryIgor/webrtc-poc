@@ -36,16 +36,23 @@ const LEAVE_ROOM = "LEAVE_ROOM";
 const ROOM_MEMBERS = "ROOM_MEMBERS";
 
 const highQualityVideoConstraints = {
-    width: { ideal: 480, max: 640 },
-    height: { ideal: 360, max: 480 },
+    width: { ideal: 640, max: 960 },
+    height: { ideal: 480, max: 720 },
     frameRate: 30
 };
 
 const mediumQualityVideoContraints = {
-    width: { ideal: 360, max: 480 },
-    height: { ideal: 270, max: 360 },
+    width: { ideal: 320, max: 480 },
+    height: { ideal: 240, max: 360 },
     frameRate: 20
 };
+
+const lowQualityVideoContraints = {
+    width: { ideal: 160, max: 200 },
+    height: { ideal: 120, max: 200 },
+    frameRate: 20
+};
+
 
 const streamConstraints = {
     video: mediumQualityVideoContraints,

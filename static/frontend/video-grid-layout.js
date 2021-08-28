@@ -12,7 +12,7 @@ function isLandscape() {
 
 export class VideoGridLayout {
 
-    constructor(container, containerWidth = 90, containerHeight = 85) {
+    constructor(container, containerWidth = 97, containerHeight = 88) {
         this.container = container;
         this.containerWidth = containerWidth;
         this.containerHeight = containerHeight;
@@ -125,8 +125,12 @@ export class VideoGridLayout {
         }
 
         videos.forEach((v) => {
-            v.style.maxWidth = `${maxWidth}vw`;
-            v.style.maxHeight = `${maxHeight}vh`;
+            const width = `${maxWidth}vw`;
+            const height = `${maxHeight}vh`;
+            v.style.width = width;
+            v.style.height = height;
+            v.style.maxWidth = width;
+            v.style.maxHeight = height;
         });
     }
 }
