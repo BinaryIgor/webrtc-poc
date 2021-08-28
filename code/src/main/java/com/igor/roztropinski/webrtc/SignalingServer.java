@@ -4,10 +4,7 @@ import com.igor.roztropinski.webrtc.function.Dates;
 import com.igor.roztropinski.webrtc.function.SocketMessages;
 import com.igor.roztropinski.webrtc.function.WebSockets;
 import com.igor.roztropinski.webrtc.json.JsonMapper;
-import com.igor.roztropinski.webrtc.model.PeerEvent;
-import com.igor.roztropinski.webrtc.model.RawSocketMessage;
-import com.igor.roztropinski.webrtc.model.SocketMessage;
-import com.igor.roztropinski.webrtc.model.SocketMessageType;
+import com.igor.roztropinski.webrtc.model.*;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.WebSocketBase;
 import lombok.Value;
@@ -127,7 +124,6 @@ public class SignalingServer {
         newConnections.put(socket.textHandlerID(), new SocketConnection(socket, Dates.now()));
 
         socket.textMessageHandler(msg -> {
-            log.info("Handling text message...{}", msg);
             var id = authenticatedConnections.get(socket.textHandlerID());
             WebSockets.message(socket, msg, false).ifPresentOrElse(m -> {
                         handleMessage(socket, m, id);
@@ -156,8 +152,21 @@ public class SignalingServer {
         } else if (id == null) {
             WebSockets.send(socket,
                     SocketMessages.failure(SocketMessageType.UNKNOWN, Errors.NOT_AUTHENTICATED));
+        } else if (message.type() == SocketMessageType.PEER_LOG) {
+            handlePeerLogMessage(message, id);
         } else {
             handleRoomMessage(message, id);
+        }
+    }
+
+    private void handlePeerLogMessage(RawSocketMessage message, String id) {
+        try {
+            WebSockets.data(message, PeerLog.class)
+                    .ifPresent(d -> {
+                        log.info("Peer log from {} is: {}", id, d);
+                    });
+        } catch (Exception e) {
+            log.warn("Unhandled exception while handling peer log message from: " + id, e);
         }
     }
 
@@ -222,7 +231,7 @@ public class SignalingServer {
     }
 
     private boolean isAuthentication(RawSocketMessage message, String id) {
-        return id == null &&  message.type() == SocketMessageType.USER_AUTHENTICATION;
+        return id == null && message.type() == SocketMessageType.USER_AUTHENTICATION;
     }
 
     private void handleAuthentication(WebSocketBase socket, RawSocketMessage message) {
@@ -231,7 +240,8 @@ public class SignalingServer {
                     .ifPresent(d -> authenticator.authenticate(socket, d));
         } catch (Exception e) {
             log.warn("Unhandled exception while handling message...", e);
-            WebSockets.send(socket, SocketMessages.failure(SocketMessageType.USER_AUTHENTICATION, Errors.UNKNOWN_ERROR));
+            WebSockets
+                    .send(socket, SocketMessages.failure(SocketMessageType.USER_AUTHENTICATION, Errors.UNKNOWN_ERROR));
         }
     }
 
