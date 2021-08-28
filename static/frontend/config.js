@@ -11,13 +11,13 @@ const webrtcConfiguration = {
     iceTransportPolicy: "all",
     iceServers: [
         {
-            url:"stun:stun.l.google.com:19302"
+            urls:"stun:stun.l.google.com:19302"
         },
         {
-            url: "stun:localhost:3478"
+            urls: "stun:localhost:3478"
         },
         {
-            url: "turn:localhost:3478",
+            urls: "turn:localhost:3478",
             credential: "test123",
             username: "test"
         }
