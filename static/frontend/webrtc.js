@@ -44,7 +44,7 @@ const highQualityVideoConstraints = {
 const mediumQualityVideoContraints = {
     width: { ideal: 360, max: 480 },
     height: { ideal: 270, max: 360 },
-    frameRate: 15
+    frameRate: 20
 };
 
 const streamConstraints = {
@@ -189,11 +189,11 @@ function noPeerConnections() {
 }
 
 function updateVideoStreamQuality() {
-    //FIX it, does not get applied
-    if (localStream == null) {
+    if (localStream == null || true) {
         console.log("Local stream is not set, skipping quality change");
         return;
     }
+    //FIX it: not working on chrome, firefox not supporting constraints (?) almost at all
     let newContraints;
     if (peerConnections.size <= 2) {
         console.log("Up to 2 peers, using high quality video");
