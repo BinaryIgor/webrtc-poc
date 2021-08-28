@@ -144,6 +144,7 @@ function connectToSignalServer() {
 }
 
 function handleServerMessage(message) {
+    userLog('Message received from server...', message);
     if (message.type == USER_AUTHENTICATED) {
         console.log("SignalServerConnection is authenticated");
         authenticated = true;
@@ -245,7 +246,7 @@ async function handleOffer(from, offer) {
 }
 
 async function onCreateAnswerSuccess(peerConnection, to, answer) {
-    peerLog(to, "Created answer:\n", answer.sdp);
+    peerLog(to, "Answer created");
     peerLog(to, "Setting is as local description");
     try {
         await peerConnection.setLocalDescription(answer);
@@ -520,16 +521,28 @@ function recreatePeerConnection(peerId, offer = false) {
 function peerLog(peerId, message, ...objects) {
     const formatted = `${new Date().toISOString()}, Peer: ${peerId} - ${message}`;
     console.log(formatted, ...objects);
+    
+    let jsonObjects;
+    if (objects.length > 0) {
+        jsonObjects = objects.map(o => JSON.stringify(o));
+    } else {
+        jsonObjects = [];
+    }
+
     if (signalServerSocket) {
         sendToSignalServer({
             type: PEER_LOG,
             data: {
                 peerId: peerId,
                 message: formatted,
-                objects: objects
+                objects: jsonObjects
             }
         });
     }
+}
+
+function userLog(message, ...objects) {
+    peerLog(user, message, objects);
 }
 
 function createPeerVideo(peerId) {
@@ -590,7 +603,7 @@ async function createOffer(peerId, peerConnection) {
 }
 
 async function onCreateOfferSuccess(peerId, peerConnection, offer) {
-    peerLog(peerId, "Offer from peerConnection:\n", offer.sdp);
+    peerLog(peerId, "Offer created");
     peerLog(peerId, "Setting it as local description");
     try {
         await peerConnection.setLocalDescription(offer);

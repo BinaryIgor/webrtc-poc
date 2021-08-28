@@ -88,6 +88,8 @@ public class SignalingServer {
 
                         toClose.forEach((id, socket) -> closeAndRemove(socket));
                     }
+
+                    log.info("Active connections: {}", authenticatedConnections.values());
                 }, 0, invalidatorFrequency, TimeUnit.MILLISECONDS);
     }
 

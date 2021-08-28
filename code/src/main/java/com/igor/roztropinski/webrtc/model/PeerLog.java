@@ -8,5 +8,5 @@ import java.util.List;
 public class PeerLog {
     String peerId;
     String message;
-    List<Object> objects;
+    List<String> objects;
 }
