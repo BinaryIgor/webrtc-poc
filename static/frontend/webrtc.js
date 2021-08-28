@@ -38,8 +38,8 @@ const PEER_LOG = "PEER_LOG";
 const PING = "PING";
 const PONG = "PONG";
 
-const PING_FREQUENCY = 30 * 1000;
-const PONG_FREQUENCY = 60 * 1000;
+const PING_FREQUENCY = 15 * 1000;
+const PONG_FREQUENCY = 30 * 1000;
 let lastPong = 0;
 
 const ICE_DISCONNECTED = "disconnected";
