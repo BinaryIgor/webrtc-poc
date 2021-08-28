@@ -11,13 +11,16 @@ const webrtcConfiguration = {
     iceTransportPolicy: "all",
     iceServers: [
         {
-            urls: "stun:10.11.157.139:3478"
-        },
-        {
-            urls: "turn:10.11.157.139:3478",
-            credential: "test123",
-            username: "test"
+            urls: "stun:stun.l.google.com:19302"
         }
+        // {
+        //     urls: "stun:10.11.157.139:3478"
+        // },
+        // {
+        //     urls: "turn:10.11.157.139:3478",
+        //     credential: "test123",
+        //     username: "test"
+        // }
     ],
 };
 //replace_end

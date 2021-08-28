@@ -35,11 +35,17 @@ const JOIN_ROOM = "JOIN_ROOM";
 const LEAVE_ROOM = "LEAVE_ROOM";
 const ROOM_MEMBERS = "ROOM_MEMBERS";
 const PEER_LOG = "PEER_LOG";
+const PING = "PING";
+const PONG = "PONG";
+
+const PING_FREQUENCY = 30 * 1000;
+const PONG_FREQUENCY = 60 * 1000;
+let lastPong = 0;
 
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
 
-const RECONNECT_TIMEOUT = 3000;
+const RECONNECT_TIMEOUT = 2000;
 
 const highQualityVideoConstraints = {
     width: { ideal: 640, max: 960 },
@@ -99,15 +105,17 @@ function connectToSignalServer() {
         alert("User need to be selected");
         return;
     }
-    user = parseInt(userSelect[userSelect.selectedIndex].text);
-    console.log("Connecting as user = " + user);
 
     if (signalServerSocket) {
         signalServerSocket.close();
         authenticated = false;
         signalServerSocket = null;
         updateSignalServerConnectionStatus(OFF);
+        return;
     }
+
+    user = parseInt(userSelect[userSelect.selectedIndex].text);
+    console.log("Connecting as user = " + user);
 
     signalServerSocket = new WebSocket(CONFIG.signalServerEndpoint);
 
@@ -132,23 +140,51 @@ function connectToSignalServer() {
     signalServerSocket.onerror = e => alert(`SignalServerConnection error: ${JSON.stringify(e)}`);
 
     signalServerSocket.onclose = e => {
+        signalServerSocket = null;
+        authenticated = false;
+        updateSignalServerConnectionStatus(OFF);
+        hangup();
+
         if (e.wasClean) {
-            console.log(`Connection closed cleanly, code=${e.code}, reason=${e.reason}`);
+            alert(`Connection closed cleanly, code=${e.code}, reason=${e.reason}`);
         } else {
             alert(`Connection died, code=${e.code}`);
         }
-        authenticated = false;
-        updateSignalServerConnectionStatus(OFF);
-        hangup(false);
     };
 }
 
+function setupPingPong() {
+    lastPong = Date.now();
+    setInterval(() => {
+        if (!signalServerSocket) {
+            return;
+        }
+        if (signalServerSocket.readyState == WebSocket.OPEN) {
+            sendToSignalServer({ type: PING });
+        }
+
+        const inactive = (Date.now() - lastPong) > PONG_FREQUENCY;
+        if (inactive) {
+            console.log("Inactive server connection, closing");
+            signalServerSocket.close();
+        }
+    }, PING_FREQUENCY);
+}
+
 function handleServerMessage(message) {
+    if (message.type == PONG) {
+        lastPong = Date.now();
+        return;
+    }
+
     userLog('Message received from server...', message);
     if (message.type == USER_AUTHENTICATED) {
         console.log("SignalServerConnection is authenticated");
         authenticated = true;
         updateSignalServerConnectionStatus(ON);
+        if (lastPong == 0) {
+            setupPingPong();
+        }
     } else if (message.type == ROOM_MEMBERS) {
         setupPeerConnections(message.data);
     } else {
@@ -388,7 +424,7 @@ function setupPeerConnections(peers) {
                     console.log(`Connection to ${pid} exists, skipping`);
                     continue;
                 }
-                const peerConnection = newPeerConnection(pid);
+                const peerConnection = newPeerConnection(pid, initiateOffer);
                 if (initiateOffer) {
                     createOffer(pid, peerConnection);
                 }
@@ -425,12 +461,12 @@ function closePeer(peerId, peerConnection) {
     removePeerVideo(peerId);
 }
 
-function newPeerConnection(peerId) {
+function newPeerConnection(peerId, offerer) {
     const peerConnection = new RTCPeerConnection(CONFIG.webrtcConfiguration);
 
-    setupPeerConnection(peerId, peerConnection);
+    setupPeerConnection(peerId, peerConnection, offerer);
 
-    peerLog(peerId, "Created local peer connection");
+    peerLog(peerId, "Created local peer connection as offerer: " + offerer);
     peerConnections.set(peerId, peerConnection);
 
     peerLog(peerId, "Adding streams to peer connection");
@@ -440,7 +476,7 @@ function newPeerConnection(peerId) {
     return peerConnection;
 }
 
-function setupPeerConnection(peerId, peerConnection) {
+function setupPeerConnection(peerId, peerConnection, offerer) {
     let handlingIceProblem = false;
 
     function handleIceProblem(pid, state) {
@@ -448,6 +484,9 @@ function setupPeerConnection(peerId, peerConnection) {
             peerLog(pid, `ICE ${state} is being handled, returning`);
             return;
         }
+
+        peerLog(pid, `Handling: ${state}`);
+
         handlingIceProblem = true;
         setTimeout(() => {
             handlingIceProblem = false;
@@ -490,9 +529,17 @@ function setupPeerConnection(peerId, peerConnection) {
         updatePeerStateDescription(peerId, peerConnection.iceConnectionState);
 
         if (peerConnection.iceConnectionState == ICE_DISCONNECTED) {
-            handleIceProblem(peerId, ICE_DISCONNECTED);
+            if (offerer) {
+                handleIceProblem(peerId, ICE_DISCONNECTED);
+            } else {
+                peerLog(peerId, `Not offerer, ${ICE_DISCONNECTED} will be handled by second peer`);
+            }
         } else if (peerConnection.iceConnectionState == ICE_FAILED) {
-            handleIceProblem(peerId, ICE_FAILED);
+            if (offerer) {
+                handleIceProblem(peerId, ICE_FAILED);
+            } else {
+                peerLog(peerId, `Not offerer, ${ICE_FAILED} will be handled by second peer`);
+            }
         }
     };
 
@@ -510,7 +557,7 @@ function setupPeerConnection(peerId, peerConnection) {
 function recreatePeerConnection(peerId, offer = false) {
     const pc = peerConnections.get(peerId);
     closePeer(peerId, pc);
-    const newPc = newPeerConnection(peerId);
+    const newPc = newPeerConnection(peerId, offer);
     if (offer) {
         createOffer(peerId, newPc);
     }
@@ -521,7 +568,7 @@ function recreatePeerConnection(peerId, offer = false) {
 function peerLog(peerId, message, ...objects) {
     const formatted = `${new Date().toISOString()}, Peer: ${peerId} - ${message}`;
     console.log(formatted, ...objects);
-    
+
     let jsonObjects;
     if (objects.length > 0) {
         jsonObjects = objects.map(o => JSON.stringify(o));
@@ -614,7 +661,7 @@ async function onCreateOfferSuccess(peerId, peerConnection, offer) {
     }
 }
 
-function hangup(notifySignalServer = true) {
+function hangup() {
     console.log("Ending call");
 
     inCall = false;
@@ -627,7 +674,7 @@ function hangup(notifySignalServer = true) {
     peerConnections.clear();
     initiateOffer = true;
 
-    if (notifySignalServer) {
+    if (signalServerSocket) {
         console.log("Sending message to SignalServer");
         sendToSignalServer({ type: LEAVE_ROOM });
     }

@@ -7,13 +7,16 @@ import com.igor.roztropinski.webrtc.json.JsonMapper;
 import com.igor.roztropinski.webrtc.model.*;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.WebSocketBase;
+import lombok.Data;
 import lombok.Value;
+import lombok.With;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -25,7 +28,7 @@ public class SignalingServer {
 
     private final Map<String, SocketConnection> newConnections = new ConcurrentHashMap<>();
     private final Map<String, String> authenticatedConnections = new ConcurrentHashMap<>();
-    private final Map<String, WebSocketBase> idsConnections = new ConcurrentHashMap<>();
+    private final Map<String, SocketConnection> idsConnections = new ConcurrentHashMap<>();
     private final Set<Long> roomMembers = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final SignalingServerAuthenticator authenticator;
     private final int maxConnections;
@@ -56,9 +59,9 @@ public class SignalingServer {
     private void onAuthenticated(WebSocketBase authenticated, String userId) {
         newConnections.remove(authenticated.textHandlerID());
         authenticatedConnections.put(authenticated.textHandlerID(), userId);
-        var previous = idsConnections.put(userId, authenticated);
+        var previous = idsConnections.put(userId, new SocketConnection(authenticated, Dates.now()));
         if (previous != null) {
-            closeSocket(previous);
+            closeSocket(previous.socket);
         }
         WebSockets.send(authenticated, SocketMessages.userAuthenticated());
     }
@@ -73,24 +76,38 @@ public class SignalingServer {
 
     private void start() {
         Executors.newScheduledThreadPool(1)
-                .scheduleAtFixedRate(() -> {
-                    var now = Dates.now();
+                .scheduleAtFixedRate(this::closeNotAuthenticatedAndNotActiveConnections,
+                        0, invalidatorFrequency, TimeUnit.MILLISECONDS);
+    }
 
-                    var toClose = newConnections.entrySet().stream()
-                            .filter(e -> {
-                                var maxDate = e.getValue().activeAt.plus(authenticationTimeout, ChronoUnit.MILLIS);
-                                return now.isAfter(maxDate);
-                            })
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().socket));
+    private void closeNotAuthenticatedAndNotActiveConnections() {
+        var now = Dates.now();
 
-                    if (!toClose.isEmpty()) {
-                        log.info("About to close {} connections", toClose.size());
+        var toCloseNotAuthenticated = newConnections.values().stream()
+                .filter(s -> {
+                    var maxDate = s.activeAt.plus(authenticationTimeout, ChronoUnit.MILLIS);
+                    return now.isAfter(maxDate);
+                })
+                .collect(Collectors.toList());
 
-                        toClose.forEach((id, socket) -> closeAndRemove(socket));
-                    }
+        if (!toCloseNotAuthenticated.isEmpty()) {
+            log.info("About to close {} not authenticated connections", toCloseNotAuthenticated.size());
+            toCloseNotAuthenticated.forEach(sc -> closeAndRemove(sc.socket));
+        }
 
-                    log.info("Active connections: {}", authenticatedConnections.values());
-                }, 0, invalidatorFrequency, TimeUnit.MILLISECONDS);
+        var toCloseNotActive = idsConnections.values().stream()
+                .filter(s -> {
+                    var maxDate = s.activeAt.plus(invalidatorFrequency, ChronoUnit.MILLIS);
+                    return now.isAfter(maxDate);
+                })
+                .collect(Collectors.toList());
+
+        if (!toCloseNotActive.isEmpty()) {
+            log.info("About to close {} not active connections", toCloseNotActive.size());
+            toCloseNotActive.forEach(sc -> closeAndRemove(sc.socket));
+        }
+
+        log.info("Active connections: {}", authenticatedConnections.values());
     }
 
     private void closeAndRemove(WebSocketBase socket) {
@@ -137,7 +154,6 @@ public class SignalingServer {
                     });
         });
 
-
         socket.closeHandler(v -> {
             var socketUserId = authenticatedConnections.remove(socket.textHandlerID());
             log.info("Closing socket for user: {}", socketUserId);
@@ -156,6 +172,8 @@ public class SignalingServer {
                     SocketMessages.failure(SocketMessageType.UNKNOWN, Errors.NOT_AUTHENTICATED));
         } else if (message.type() == SocketMessageType.PEER_LOG) {
             handlePeerLogMessage(message, id);
+        } else if (message.type() == SocketMessageType.PING) {
+              handlePingMessage(id);
         } else {
             handleRoomMessage(message, id);
         }
@@ -170,6 +188,15 @@ public class SignalingServer {
         } catch (Exception e) {
             log.warn("Unhandled exception while handling peer log message from: " + id, e);
         }
+    }
+
+    private void handlePingMessage(String id) {
+        Optional.ofNullable(idsConnections.get(id))
+                .ifPresent(c -> {
+                    var updated = c.withActiveAt(Dates.now());
+                    idsConnections.put(id, updated);
+                    WebSockets.send(updated.socket, SocketMessages.pong());
+                });
     }
 
     private void handleRoomMessage(RawSocketMessage message, String id) {
@@ -207,7 +234,7 @@ public class SignalingServer {
                 return;
             }
 
-            destination.writeTextMessage(message).onFailure(t -> log.error("Fail to send message to client", t));
+            destination.socket.writeTextMessage(message).onFailure(t -> log.error("Fail to send message to client", t));
         } catch (Exception e) {
             log.error("Problem while handling peer event", e);
         }
@@ -229,7 +256,7 @@ public class SignalingServer {
     }
 
     private void writeToAllSockets(SocketMessage<?> message) {
-        idsConnections.values().forEach(s -> WebSockets.send(s, message));
+        idsConnections.values().forEach(s -> WebSockets.send(s.socket, message));
     }
 
     private boolean isAuthentication(RawSocketMessage message, String id) {
@@ -254,6 +281,7 @@ public class SignalingServer {
     @Value
     private static class SocketConnection {
         WebSocketBase socket;
+        @With
         LocalDateTime activeAt;
     }
 }

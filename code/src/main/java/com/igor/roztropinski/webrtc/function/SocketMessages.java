@@ -25,4 +25,8 @@ public class SocketMessages {
     public static SocketMessage<Collection<Long>> roomMembers(Collection<Long> ids) {
         return new SocketMessage<>(SocketMessageType.ROOM_MEMBERS, ids);
     }
+
+    public static SocketMessage<Empty> pong() {
+        return SocketMessage.empty(SocketMessageType.PONG);
+    }
 }
