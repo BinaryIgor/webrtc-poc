@@ -35,6 +35,9 @@ const JOIN_ROOM = "JOIN_ROOM";
 const LEAVE_ROOM = "LEAVE_ROOM";
 const ROOM_MEMBERS = "ROOM_MEMBERS";
 
+const ICE_DISCONNECTED = "disconnected";
+const ICE_FAILED = "failed";
+
 const highQualityVideoConstraints = {
     width: { ideal: 640, max: 960 },
     height: { ideal: 480, max: 720 },
@@ -426,6 +429,53 @@ function closePeer(peerId, peerConnection) {
 }
 
 function newPeerConnection(peerId) {
+    let handlingIceDisonnected = false;
+    let handlingIceFailed = false;
+
+    function handleIceDisonnected(pid) {
+        if (handlingIceDisonnected) {
+            peerLog(pid, `ICE ${ICE_DISCONNECTED} is being handled, returning`);
+            return;
+        }
+        handlingIceDisonnected = true;
+        setTimeout(() => {
+            handlingIceDisonnected = false;
+            const pc = peerConnections.get(pid);
+            if (!pc) {
+                peerLog(pid, "Peer is no longer active skipping reconnect");
+                return;
+            }
+            if (pc.iceConnectionState != ICE_DISCONNECTED) {
+                peerLog(pid, `Connection is no longer ${ICE_DISCONNECTED}, but ${pc.iceConnectionState}, skipping`);
+                return;
+            }
+            pc.restartIce();
+            createOffer(pid, pc);
+        }, 5000);
+    }
+
+    function handleIceFailed(pid) {
+        if (handlingIceFailed) {
+            peerLog(pid, `ICE ${ICE_FAILED} is being handled, returning`);
+            return;
+        }
+        handlingIceFailed = true;
+        setTimeout(() => {
+            handlingIceFailed = false;
+            const pc = peerConnections.get(pid);
+            if (!pc) {
+                peerLog(pid, "Peer is no longer active skipping reconnect");
+                return;
+            }
+            if (pc.iceConnectionState != ICE_FAILED) {
+                peerLog(pid, `Connection is no longer ${ICE_FAILED}, but ${pc.iceConnectionState}, skipping`);
+                return;
+            }
+            pc.restartIce();
+            createOffer(pid, pc);
+        }, 3000);
+    }
+
     const pc = new RTCPeerConnection(CONFIG.webrtcConfiguration);
 
     pc.onicecandidate = e => {
@@ -444,9 +494,18 @@ function newPeerConnection(peerId) {
 
     pc.onicecandidateerror = e => peerLog(peerId, "ICE candidate error", e);
 
+    pc.onicegatheringstatechange = () => peerLog(peerId, `ICE gathering state change: ${pc.iceGatheringState}`);
+
+    pc.onsignalingstatechange = () => peerLog(peerId, `ICE signalling state change: ${pc.signalingState}`);
+
     //TODO reconnection...
-    pc.oniceconnectionstatechange = e => {
+    pc.oniceconnectionstatechange = () => {
         peerLog(peerId, `ICE state change event: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState == ICE_DISCONNECTED) {
+            handleIceDisonnected(peerId);
+        } else if (pc.iceConnectionState == ICE_FAILED) {
+            handleIceFailed(peerId);
+        }
     };
 
     const peerVideo = createPeerVideo(peerId);
