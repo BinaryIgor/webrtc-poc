@@ -35,14 +35,23 @@ const JOIN_ROOM = "JOIN_ROOM";
 const LEAVE_ROOM = "LEAVE_ROOM";
 const ROOM_MEMBERS = "ROOM_MEMBERS";
 
-//TODO restrict frame rate on...
+const highQualityVideoConstraints = {
+    width: { ideal: 480, max: 640 },
+    height: { ideal: 360, max: 480 },
+    frameRate: 30
+};
+
+const mediumQualityVideoContraints = {
+    width: { ideal: 360, max: 480 },
+    height: { ideal: 270, max: 360 },
+    frameRate: 15
+};
+
 const streamConstraints = {
-    video: {
-        width: { ideal: 480, max: 640 },
-        height: { ideal: 320, max: 480 }
-    },
+    video: mediumQualityVideoContraints,
     audio: true
 };
+
 const peerConnections = new Map();
 
 let user;
@@ -65,6 +74,7 @@ callButton.onclick = call;
 hangupButton.onclick = hangup;
 
 localVideo.onloadedmetadata = () => console.log(`Local video videoWidth: ${localVideo.videoWidth}px,  videoHeight: ${localVideo.videoHeight}px`);
+localVideo.onresize = () => console.log(`Local video size changed to ${localVideo.videoWidth}x${localVideo.videoHeight}`);
 
 
 function connectToSignalServer() {
@@ -176,6 +186,31 @@ function handleEvent(from, event, data) {
 
 function noPeerConnections() {
     return peerConnections.size == 0;
+}
+
+function updateVideoStreamQuality() {
+    //FIX it, does not get applied
+    if (localStream == null) {
+        console.log("Local stream is not set, skipping quality change");
+        return;
+    }
+    let newContraints;
+    if (peerConnections.size <= 2) {
+        console.log("Up to 2 peers, using high quality video");
+        newContraints = highQualityVideoConstraints;
+    } else {
+        console.log("More than 2 peers, switching to medium quality");
+        newContraints = mediumQualityVideoContraints;
+    }
+
+    streamConstraints.video = newContraints;
+
+    localStream.getVideoTracks().forEach(t => {
+        console.log("Applying new constraints to stream...", newContraints);
+        t.applyConstraints(streamConstraints)
+            .then(() => console.log("Constraints applied"))
+            .catch(e => console.log("Fail to apply new constraints", e));
+    });
 }
 
 async function handleOffer(from, offer) {
@@ -358,6 +393,7 @@ function setupPeerConnections(peers) {
         initiateOffer = false;
         videoGridLayout.refresh();
         setupRemoteVideosListeners();
+        updateVideoStreamQuality();
     }
 }
 
@@ -399,15 +435,18 @@ function newPeerConnection(peerId) {
         }
     };
 
+    pc.onicecandidateerror = e => peerLog(peerId, "ICE candidate error", e);
+
+    //TODO reconnection...
     pc.oniceconnectionstatechange = e => {
         peerLog(peerId, `ICE state change event: ${pc.iceConnectionState}`);
     };
 
     const peerVideo = createPeerVideo(peerId);
     pc.ontrack = e => {
+        peerLog(peerId, "Received remote streams...", e.streams);
         if (peerVideo.srcObject !== e.streams[0]) {
             peerVideo.srcObject = e.streams[0];
-            peerLog(peerId, 'Peer connection received remote stream');
         } else {
             peerLog(peerId, "Peer received same remote stream again, skipping");
         }
