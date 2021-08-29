@@ -33,14 +33,17 @@ public class SignalingServer {
     private final SignalingServerAuthenticator authenticator;
     private final int maxConnections;
     private final int authenticationTimeout;
+    private final int inactiveTimeout;
     private final int invalidatorFrequency;
     private boolean started = false;
 
     public SignalingServer(SignalingServerAuthenticator authenticator,
                            int maxConnections,
                            int authenticationTimeout,
+                           int inactiveTimeout,
                            int invalidatorFrequency) {
         this.authenticator = authenticator;
+        this.inactiveTimeout = inactiveTimeout;
         this.maxConnections = maxConnections;
         this.authenticationTimeout = authenticationTimeout;
         this.invalidatorFrequency = invalidatorFrequency;
@@ -49,7 +52,7 @@ public class SignalingServer {
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator, int maxConnections) {
-        this(authenticator, maxConnections, 20_000, 60_000);
+        this(authenticator, maxConnections, 20_000, 20_000, 10_000);
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator) {
@@ -69,8 +72,7 @@ public class SignalingServer {
     private void closeSocket(WebSocketBase socket) {
         try {
             socket.close();
-        } catch (Exception e) {
-            //swallow
+        } catch (Exception ignored) {
         }
     }
 
@@ -81,6 +83,8 @@ public class SignalingServer {
     }
 
     private void closeNotAuthenticatedAndNotActiveConnections() {
+        log.info("Active connections: {}", authenticatedConnections.values());
+
         var now = Dates.now();
 
         var toCloseNotAuthenticated = newConnections.values().stream()
@@ -92,29 +96,29 @@ public class SignalingServer {
 
         if (!toCloseNotAuthenticated.isEmpty()) {
             log.info("About to close {} not authenticated connections", toCloseNotAuthenticated.size());
-            toCloseNotAuthenticated.forEach(sc -> closeAndRemove(sc.socket));
+            toCloseNotAuthenticated.forEach(sc -> closeAndRemove(sc.socket, false));
         }
 
         var toCloseNotActive = idsConnections.values().stream()
                 .filter(s -> {
-                    var maxDate = s.activeAt.plus(invalidatorFrequency, ChronoUnit.MILLIS);
+                    var maxDate = s.activeAt.plus(inactiveTimeout, ChronoUnit.MILLIS);
                     return now.isAfter(maxDate);
                 })
                 .collect(Collectors.toList());
 
         if (!toCloseNotActive.isEmpty()) {
             log.info("About to close {} not active connections", toCloseNotActive.size());
-            toCloseNotActive.forEach(sc -> closeAndRemove(sc.socket));
+            toCloseNotActive.forEach(sc -> closeAndRemove(sc.socket, true));
         }
-
-        log.info("Active connections: {}", authenticatedConnections.values());
     }
 
-    private void closeAndRemove(WebSocketBase socket) {
+    private void closeAndRemove(WebSocketBase socket, boolean authenticated) {
         try {
             closeSocket(socket);
-            newConnections.remove(socket.textHandlerID());
-            authenticator.invalidate(socket);
+            if (!authenticated) {
+                newConnections.remove(socket.textHandlerID());
+                authenticator.invalidate(socket);
+            }
         } catch (Exception ignored) {
 
         }

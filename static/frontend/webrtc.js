@@ -38,14 +38,14 @@ const PEER_LOG = "PEER_LOG";
 const PING = "PING";
 const PONG = "PONG";
 
-const PING_FREQUENCY = 15 * 1000;
-const PONG_FREQUENCY = 30 * 1000;
+const PING_FREQUENCY = 5 * 1000;
+const PONG_FREQUENCY = 20 * 1000;
 let lastPong = 0;
 
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
 
-const RECONNECT_TIMEOUT = 2000;
+const RECONNECT_TIMEOUT = 4000;
 
 const highQualityVideoConstraints = {
     width: { ideal: 640, max: 960 },
@@ -120,11 +120,11 @@ function connectToSignalServer() {
     signalServerSocket = new WebSocket(CONFIG.signalServerEndpoint);
 
     signalServerSocket.onopen = () => {
-        alert("SignalServerConnection established, sending credentials");
         sendToSignalServer({
             type: USER_AUTHENTICATION,
             data: userSecret
         });
+        alert("SignalServerConnection established, sending credentials");
     };
 
     signalServerSocket.onmessage = e => {
@@ -155,12 +155,17 @@ function connectToSignalServer() {
 
 function setupPingPong() {
     lastPong = Date.now();
+
+    const ping = { type: PING };
+    sendToSignalServer(ping);
+
     setInterval(() => {
         if (!signalServerSocket) {
             return;
         }
+
         if (signalServerSocket.readyState == WebSocket.OPEN) {
-            sendToSignalServer({ type: PING });
+            sendToSignalServer(ping);
         }
 
         const inactive = (Date.now() - lastPong) > PONG_FREQUENCY;
@@ -485,10 +490,9 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
             return;
         }
 
-        peerLog(pid, `Handling: ${state}`);
-
         handlingIceProblem = true;
         setTimeout(() => {
+            peerLog(pid, `Handling: ${state}`);
             handlingIceProblem = false;
             const pc = peerConnections.get(pid);
             if (!pc) {
@@ -526,7 +530,7 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
     //TODO reconnection...
     peerConnection.oniceconnectionstatechange = () => {
         peerLog(peerId, `ICE state change event: ${peerConnection.iceConnectionState}`);
-        updatePeerStateDescription(peerId, peerConnection.iceConnectionState);
+        updatePeerStateDescription(peerId, peerConnection.iceConnectionState, offerer);
 
         if (peerConnection.iceConnectionState == ICE_DISCONNECTED) {
             if (offerer) {
@@ -545,8 +549,8 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
 
     const peerVideo = createPeerVideo(peerId);
     peerConnection.ontrack = e => {
-        peerLog(peerId, "Received remote streams...", e.streams);
-        if (peerVideo.srcObject !== e.streams[0]) {
+        if (!peerVideo.srcObject) {
+            peerLog(peerId, "No remote stream set up, taking first one", e.streams);
             peerVideo.srcObject = e.streams[0];
         } else {
             peerLog(peerId, "Peer received same remote stream again, skipping");
@@ -554,13 +558,20 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
     };
 }
 
-function recreatePeerConnection(peerId, offer = false) {
+function recreatePeerConnection(peerId, offer = true) {
     const pc = peerConnections.get(peerId);
+
+    //Remove tracks before close
+    const senders = pc.getSenders();
+    senders.forEach(s => pc.removeTrack(s));
+
     closePeer(peerId, pc);
+
     const newPc = newPeerConnection(peerId, offer);
     if (offer) {
         createOffer(peerId, newPc);
     }
+
     videoGridLayout.refresh();
     setupRemoteVideosListeners();
 }
@@ -616,10 +627,15 @@ function peerDescriptionId(peerId) {
     return `remoteDescription_${peerId}`;
 }
 
-function updatePeerStateDescription(peerId, state) {
+function updatePeerStateDescription(peerId, state, offerer = false) {
     const peerDescription = document.getElementById(peerDescriptionId(peerId));
     if (peerDescription) {
-        peerDescription.textContent = `${peerId}: ${state.toUpperCase()}`;
+        let stateDescription = state.toUpperCase();
+        if (state == ICE_DISCONNECTED || state == ICE_FAILED) {
+            const suffix = offerer ? "handling..." : "handled by peer";
+            stateDescription = `${stateDescription} - ${suffix}`;
+        }
+        peerDescription.textContent = `${peerId}: ${stateDescription}`;
     }
 }
 

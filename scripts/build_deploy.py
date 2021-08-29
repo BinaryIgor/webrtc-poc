@@ -140,23 +140,15 @@ def replace_js_config(js_path, server_host, server_port, use_https, turn_user, t
     ws_prefix = "wss" if use_https else "ws"
     new_signal_server_endpoint = f"const signalServerEndpoint = '{ws_prefix}://{server_host}:{server_port}';"
 
-
-    f""""
-    TODO: fix turn and use
-    {{
-                urls: "turn:{server_host}:{coturn_port}",
-                username: "{turn_user}",
-                credential: "{turn_password}"
-            }}
-    """
-
     new_webrtc_configuration = f"""const webrtcConfiguration = {{
         iceServers: [
             {{
                 urls: "{MAIN_STUN_SERVER}"
             }},
             {{
-                urls: "stun:{server_host}:{coturn_port}"
+                urls: "turn:{server_host}:{coturn_port}",
+                username: "{turn_user}",
+                credential: "{turn_password}"
             }}
         ],
     }};"""
