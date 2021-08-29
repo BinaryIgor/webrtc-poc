@@ -7,7 +7,6 @@ import com.igor.roztropinski.webrtc.json.JsonMapper;
 import com.igor.roztropinski.webrtc.model.*;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.WebSocketBase;
-import lombok.Data;
 import lombok.Value;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +51,7 @@ public class SignalingServer {
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator, int maxConnections) {
-        this(authenticator, maxConnections, 20_000, 20_000, 10_000);
+        this(authenticator, maxConnections, 20_000, 15_000, 10_000);
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator) {
@@ -64,6 +63,7 @@ public class SignalingServer {
         authenticatedConnections.put(authenticated.textHandlerID(), userId);
         var previous = idsConnections.put(userId, new SocketConnection(authenticated, Dates.now()));
         if (previous != null) {
+            authenticatedConnections.remove(previous.socket.textHandlerID());
             closeSocket(previous.socket);
         }
         WebSockets.send(authenticated, SocketMessages.userAuthenticated());
@@ -177,7 +177,7 @@ public class SignalingServer {
         } else if (message.type() == SocketMessageType.PEER_LOG) {
             handlePeerLogMessage(message, id);
         } else if (message.type() == SocketMessageType.PING) {
-              handlePingMessage(id);
+            handlePingMessage(id);
         } else {
             handleRoomMessage(message, id);
         }

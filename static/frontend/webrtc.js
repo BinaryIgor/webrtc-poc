@@ -39,7 +39,7 @@ const PING = "PING";
 const PONG = "PONG";
 
 const PING_FREQUENCY = 5 * 1000;
-const PONG_FREQUENCY = 20 * 1000;
+const PONG_FREQUENCY = 15 * 1000;
 let lastPong = 0;
 
 const ICE_DISCONNECTED = "disconnected";
@@ -142,6 +142,7 @@ function connectToSignalServer() {
     signalServerSocket.onclose = e => {
         signalServerSocket = null;
         authenticated = false;
+        lastPong = 0;
         updateSignalServerConnectionStatus(OFF);
         hangup();
 
