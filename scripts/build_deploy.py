@@ -14,6 +14,7 @@ CERTS = "certs"
 WEBRTC_POC = "webrtc-poc"
 COTURN = "coturn"
 COTURN_CONFIG_USER_KEY = "user"
+COTURN_CONFIG_REALM_KEY = "realm"
 
 MAIN_STUN_SERVER = "stun:stun.l.google.com:19302"
 
@@ -77,13 +78,18 @@ def new_coturn_credentials():
     return new_secret(), new_secret()
 
 
-def replace_coturn_credentials(config_path, user, password):
+def replace_coturn_config(config_path, user, password, realm):
     with open(config_path) as f:
         new_lines = []
         for l in f.readlines():
             if l.startswith(COTURN_CONFIG_USER_KEY):
                 new_credentials = f"{COTURN_CONFIG_USER_KEY}={user}:{password}"
                 new_lines.append(new_credentials)
+                new_lines.append("\n")
+            elif l.startswith(COTURN_CONFIG_REALM_KEY):
+                new_realm = f'{COTURN_CONFIG_REALM_KEY}={realm}'
+                new_lines.append(new_realm)
+                new_lines.append("\n")
             else:
                 new_lines.append(l)
 
@@ -230,8 +236,8 @@ shutil.copytree(path.join(ROOT_DIR, "docker", COTURN),
 print()
 print("Replacing coturn credentials with random ones...")
 coturn_user, coturn_password = new_coturn_credentials()
-replace_coturn_credentials(path.join(DEPLOY_LOCAL_COTURN_POC_DIR, "coturn.conf"),
-                           user=coturn_user, password=coturn_password)
+replace_coturn_config(path.join(DEPLOY_LOCAL_COTURN_POC_DIR, "coturn.conf"),
+                      user=coturn_user, password=coturn_password, realm=server_host)
 
 print()
 print(f"Building {WEBRTC_POC}...")

@@ -31,6 +31,7 @@
 
 ## Experiment
 * reconnect after going offline
+* reconnect - inform about no ice candidates
 
 komputer prywatny, 4 userow, wlacznie, od kazdego video i od jednego audio receiving 350-400kib/s sending 350-400kib/s
 video kompa firmowego 640x480 przesyła 220kib/s 
