@@ -51,7 +51,7 @@ public class SignalingServer {
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator, int maxConnections) {
-        this(authenticator, maxConnections, 20_000, 15_000, 10_000);
+        this(authenticator, maxConnections, 20_000, 10_000, 10_000);
     }
 
     public SignalingServer(SignalingServerAuthenticator authenticator) {
