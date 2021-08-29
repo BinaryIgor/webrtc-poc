@@ -580,13 +580,18 @@ async function logConnectionStats(peerId, peerConnection) {
     }
 }
 
+//Hacks to make it work on various browsers. API of peerConnection.getStats() is not stable yet
 function selectedCandidatePair(stats) {
+    let pair = null;
     for (const v of stats.values()) {
-        if (v.type == "candidate-pair" && v.nominated && v.selected) {
-            return v;
+        //Chrome has only nominated property
+        if (v.type == "candidate-pair") {
+            if (pair == null || (v.nominated && v.selected)) {
+                pair = v;
+            }
         }
     }
-    return null;
+    return pair;
 }
 
 function selectedCandidates(candidatePair, stats) {
