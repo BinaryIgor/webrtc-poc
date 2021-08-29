@@ -42,6 +42,7 @@ const PING_FREQUENCY = 5 * 1000;
 const PONG_FREQUENCY = 15 * 1000;
 let lastPong = 0;
 
+const ICE_CONNECTED = "connected";
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
 
@@ -528,7 +529,6 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
 
     peerConnection.onsignalingstatechange = () => peerLog(peerId, `ICE signalling state change: ${peerConnection.signalingState}`);
 
-    //TODO reconnection...
     peerConnection.oniceconnectionstatechange = () => {
         peerLog(peerId, `ICE state change event: ${peerConnection.iceConnectionState}`);
         updatePeerStateDescription(peerId, peerConnection.iceConnectionState, offerer);
@@ -545,6 +545,8 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
             } else {
                 peerLog(peerId, `Not offerer, ${ICE_FAILED} will be handled by second peer`);
             }
+        } else if (peerConnection.iceConnectionState == ICE_CONNECTED) {
+            logConnectionStats(peerId, peerConnection);
         }
     };
 
@@ -556,6 +558,58 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
         } else {
             peerLog(peerId, "Peer received same remote stream again, skipping");
         }
+    };
+}
+
+async function logConnectionStats(peerId, peerConnection) {
+    try {
+        const stats = await peerConnection.getStats();
+
+        const candidatePair = selectedCandidatePair(stats);
+        if (!candidatePair) {
+            peerLog(peerId, "Can't find selected and nominated candidatePair");
+            return;
+        }
+
+        peerLog(peerId, "Selected and nominated candidatePair: ", candidatePair);
+
+        const candidates = selectedCandidates(candidatePair, stats);
+        peerLog(peerId, "Selected and nominated candidates: ", candidates);
+    } catch (e) {
+        peerLog(peerId, "Failed to gather connection stats", e);
+    }
+}
+
+function selectedCandidatePair(stats) {
+    for (const v of stats.values()) {
+        if (v.type == "candidate-pair" && v.nominated && v.selected) {
+            return v;
+        }
+    }
+    return null;
+}
+
+function selectedCandidates(candidatePair, stats) {
+    const localCandidateId = candidatePair.localCandidateId;
+    const remoteCandidateId = candidatePair.remoteCandidateId;
+
+    let localCandidate = null;
+    let remoteCandidate = null;
+    for (const v of stats.values()) {
+        if (v.type == "local-candidate" && v.id == localCandidateId) {
+            localCandidate = v;
+        } else if (v.type == "remote-candidate" && v.id == remoteCandidateId) {
+            remoteCandidate = v;
+        }
+
+        if (localCandidate && remoteCandidate) {
+            break;
+        }
+    }
+
+    return {
+        local: localCandidate,
+        remote: remoteCandidate
     };
 }
 
