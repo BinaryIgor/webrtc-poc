@@ -403,15 +403,34 @@ async function call() {
     const audioTracks = localStream.getAudioTracks();
 
     if (videoTracks.length > 0) {
-        console.log(`Using video device: ${videoTracks[0].label}, with settings: `, videoTracks[0].getSettings());
+        userLog(`Using video device: ${videoTracks[0].label}, with settings: `, videoTracks[0].getSettings());
+        showAvailableDevices("videoinput");
     }
     if (audioTracks.length > 0) {
-        console.log(`Using audio device: ${audioTracks[0].label}`);
+        userLog(`Using audio device: ${audioTracks[0].label}, with settings: `, audioTracks[0].getSettings());
     }
 
     inCall = true;
     sendToSignalServer({ type: JOIN_ROOM });
     remoteContainerParent.classList.remove(NO_DISPLAY_CLASS);
+}
+
+async function showAvailableDevices(kind) {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        devices.forEach(d => {
+            if (d.kind == kind) {
+                userLog(`Available ${kind} device: `, {
+                    label: d.label,
+                    deviceId: d.deviceId,
+                    kind: d.kind,
+                    capabilities: (typeof d.getCapabilities == 'function') ? d.getCapabilities() : {}
+                });
+            }
+        })
+    } catch (e) {
+        userLog("Problem while gathering available devices: " + e);
+    }
 }
 
 function setupPeerConnections(peers) {
