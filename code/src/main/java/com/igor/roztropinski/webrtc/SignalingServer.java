@@ -188,6 +188,7 @@ public class SignalingServer {
             WebSockets.data(message, PeerLog.class)
                     .ifPresent(d -> {
                         log.info("Peer log from {} is: {}", id, d);
+                        log.info("...\n");
                     });
         } catch (Exception e) {
             log.warn("Unhandled exception while handling peer log message from: " + id, e);

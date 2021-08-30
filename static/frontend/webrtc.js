@@ -588,8 +588,8 @@ function selectedCandidatePair(stats) {
     let pair = null;
     for (const v of stats.values()) {
         //Chrome has only nominated property
-        if (v.type == "candidate-pair") {
-            if (pair == null || (v.nominated && v.selected)) {
+        if (v.type == "candidate-pair" && v.nominated) {
+            if (pair == null || v.selected) {
                 pair = v;
             }
         }
@@ -623,10 +623,6 @@ function selectedCandidates(candidatePair, stats) {
 
 function recreatePeerConnection(peerId, offer = true) {
     const pc = peerConnections.get(peerId);
-
-    //Remove tracks before close
-    const senders = pc.getSenders();
-    senders.forEach(s => pc.removeTrack(s));
 
     closePeer(peerId, pc);
 
