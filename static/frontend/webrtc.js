@@ -42,7 +42,6 @@ const PING_FREQUENCY = 2500;
 const PONG_FREQUENCY = 10000;
 let lastPong = 0;
 
-const ICE_CONNECTED = "connected";
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
 
@@ -547,7 +546,12 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
 
     peerConnection.onicecandidateerror = e => peerLog(peerId, "ICE candidate error", e);
 
-    peerConnection.onicegatheringstatechange = () => peerLog(peerId, `ICE gathering state change: ${peerConnection.iceGatheringState}`);
+    peerConnection.onicegatheringstatechange = () => {
+        peerLog(peerId, `ICE gathering state change: ${peerConnection.iceGatheringState}`);
+        if (peerConnection.iceGatheringState == "complete") {
+            logConnectionStats(peerId, peerConnection);
+        }
+    };
 
     peerConnection.onsignalingstatechange = () => peerLog(peerId, `ICE signalling state change: ${peerConnection.signalingState}`);
 
@@ -567,8 +571,6 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
             } else {
                 peerLog(peerId, `Not offerer, ${ICE_FAILED} will be handled by second peer`);
             }
-        } else if (peerConnection.iceConnectionState == ICE_CONNECTED) {
-            logConnectionStats(peerId, peerConnection);
         }
     };
 
@@ -583,17 +585,21 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
     };
 }
 
-async function logConnectionStats(peerId, peerConnection) {
+async function logConnectionStats(peerId, peerConnection, retry = true) {
     try {
         const stats = await peerConnection.getStats();
 
         const candidatePair = selectedCandidatePair(stats);
         if (!candidatePair) {
-            peerLog(peerId, "Can't find selected and nominated candidatePair");
+            peerLog(peerId, "Can't find selected and nominated candidatePair...");
+            if (retry) {
+                peerLog(peerId, "Will retry soon...");
+                setTimeout(async () => logConnectionStats(peerId, peerConnection, false), 1000);
+            }
             return;
         }
 
-        peerLog(peerId, "Selected and nominated candidatePair: ", candidatePair);
+        peerLog(peerId, "Nominated and suceeded candidatePair: ", candidatePair);
 
         const candidates = selectedCandidates(candidatePair, stats);
         peerLog(peerId, "Selected and nominated candidates: ", candidates);
@@ -602,18 +608,13 @@ async function logConnectionStats(peerId, peerConnection) {
     }
 }
 
-//Hacks to make it work on various browsers. API of peerConnection.getStats() is not stable yet
 function selectedCandidatePair(stats) {
-    let pair = null;
     for (const v of stats.values()) {
-        //Chrome has only nominated property
-        if (v.type == "candidate-pair" && v.nominated) {
-            if (pair == null || v.selected) {
-                pair = v;
-            }
+        if (v.type == "candidate-pair" && v.nominated && v.state == "succeeded") {
+            return v;
         }
     }
-    return pair;
+    return null;
 }
 
 function selectedCandidates(candidatePair, stats) {
