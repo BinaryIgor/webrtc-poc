@@ -41,6 +41,7 @@ const PONG = "PONG";
 const PING_FREQUENCY = 2500;
 const PONG_FREQUENCY = 10000;
 let lastPong = 0;
+let pongInterval = null;
 
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
@@ -50,7 +51,7 @@ const RECONNECT_TIMEOUT = 4000;
 const highQualityVideoConstraints = {
     width: { ideal: 640, max: 960 },
     height: { ideal: 480, max: 720 },
-    frameRate: 30
+    frameRate: 25
 };
 
 const mediumQualityVideoContraints = {
@@ -66,7 +67,7 @@ const lowQualityVideoContraints = {
 };
 
 const streamConstraints = {
-    video: mediumQualityVideoContraints,
+    video: highQualityVideoConstraints,
     audio: true
 };
 
@@ -108,9 +109,7 @@ function connectToSignalServer() {
 
     if (signalServerSocket) {
         signalServerSocket.close();
-        authenticated = false;
-        signalServerSocket = null;
-        updateSignalServerConnectionStatus(OFF);
+        onCloseSignalServerSocket();
         return;
     }
 
@@ -142,19 +141,31 @@ function connectToSignalServer() {
 
     signalServerSocket.onerror = e => alert(`SignalServerConnection error: ${JSON.stringify(e)}`);
 
-    signalServerSocket.onclose = e => {
-        signalServerSocket = null;
-        authenticated = false;
-        lastPong = 0;
-        updateSignalServerConnectionStatus(OFF);
-        hangup();
+    signalServerSocket.onclose = onCloseSignalServerSocket;
+}
 
+function onCloseSignalServerSocket(e) {
+    if (signalServerSocket == null) {
+        return;
+    }
+    signalServerSocket = null;
+    authenticated = false;
+    lastPong = 0;
+    updateSignalServerConnectionStatus(OFF);
+    hangup();
+
+    if (pongInterval) {
+        clearInterval(pongInterval);
+        pongInterval = null;
+    }
+
+    if (e) {
         if (e.wasClean) {
             alert(`Connection closed cleanly, code=${e.code}, reason=${e.reason}`);
         } else {
             alert(`Connection died, code=${e.code}`);
         }
-    };
+    }
 }
 
 function setupPingPong() {
@@ -163,7 +174,7 @@ function setupPingPong() {
     const ping = { type: PING };
     sendToSignalServer(ping);
 
-    setInterval(() => {
+    pongInterval = setInterval(() => {
         if (!signalServerSocket) {
             return;
         }
@@ -176,6 +187,7 @@ function setupPingPong() {
         if (inactive) {
             console.log("Inactive server connection, closing");
             signalServerSocket.close();
+            onCloseSignalServerSocket();
         }
     }, PING_FREQUENCY);
 }
