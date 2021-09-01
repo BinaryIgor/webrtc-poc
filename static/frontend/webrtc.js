@@ -302,14 +302,22 @@ async function onCreateAnswerSuccess(peerConnection, to, answer) {
     }
 }
 
-function handleAnswer(from, answer) {
-    const peerConnection = peerConnections.get(from);
-    peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+async function handleAnswer(from, answer) {
+    try {
+        const peerConnection = peerConnections.get(from);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    } catch (e) {
+        peerLog(from, "Problem while handling answer: " + e);
+    }
 }
 
-function handleCandidate(from, candidate) {
-    const peerConnection = peerConnections.get(from);
-    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+async function handleCandidate(from, candidate) {
+    try {
+        const peerConnection = peerConnections.get(from);
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (e) {
+        peerLog(from, "Problem while handling candidate: " + e);
+    }
 
 }
 
@@ -661,7 +669,7 @@ function peerLog(peerId, message, ...objects) {
 
     let jsonObjects;
     if (objects.length > 0) {
-        jsonObjects = objects.map(o => JSON.stringify(o));
+        jsonObjects = objects.map(o => JSON.stringify(o, null, 2));
     } else {
         jsonObjects = [];
     }
