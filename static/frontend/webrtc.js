@@ -534,6 +534,7 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
                 peerLog(pid, `Connection is no longer ${state}, but ${pc.iceConnectionState}, skipping`);
                 return;
             }
+            peerLog(pid, `Can't get back to connected in ${RECONNECT_TIMEOUT} ms, recreating connection`);
             recreatePeerConnection(peerId, true);
         }, RECONNECT_TIMEOUT);
     }
