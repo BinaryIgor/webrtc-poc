@@ -43,6 +43,7 @@ const PONG_FREQUENCY = 10000;
 let lastPong = 0;
 let pongInterval = null;
 
+const ICE_CONNECTED = "connected";
 const ICE_DISCONNECTED = "disconnected";
 const ICE_FAILED = "failed";
 
@@ -567,12 +568,7 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
 
     peerConnection.onicecandidateerror = e => peerLog(peerId, "ICE candidate error", e);
 
-    peerConnection.onicegatheringstatechange = () => {
-        peerLog(peerId, `ICE gathering state change: ${peerConnection.iceGatheringState}`);
-        if (peerConnection.iceGatheringState == "complete") {
-            logConnectionStats(peerId, peerConnection);
-        }
-    };
+    peerConnection.onicegatheringstatechange = () => peerLog(peerId, `ICE gathering state change: ${peerConnection.iceGatheringState}`);
 
     peerConnection.onsignalingstatechange = () => peerLog(peerId, `ICE signalling state change: ${peerConnection.signalingState}`);
 
@@ -592,6 +588,9 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
             } else {
                 peerLog(peerId, `Not offerer, ${ICE_FAILED} will be handled by second peer`);
             }
+        } else if (peerConnection.iceConnectionState == ICE_CONNECTED) {
+            peerLog(peerId, `Peer ${ICE_CONNECTED}, trying to find connected candidates...`);
+            logConnectionStats(peerId, peerConnection);
         }
     };
 
@@ -606,16 +605,16 @@ function setupPeerConnection(peerId, peerConnection, offerer) {
     };
 }
 
-async function logConnectionStats(peerId, peerConnection, retry = true) {
+async function logConnectionStats(peerId, peerConnection, retries = 3) {
     try {
         const stats = await peerConnection.getStats();
 
         const candidatePair = selectedCandidatePair(stats);
         if (!candidatePair) {
             peerLog(peerId, "Can't find selected and nominated candidatePair...");
-            if (retry) {
-                peerLog(peerId, "Will retry soon...");
-                setTimeout(async () => logConnectionStats(peerId, peerConnection, false), 1000);
+            if (retries > 0) {
+                peerLog(peerId, `Retries left: ${retries}...`);
+                setTimeout(async () => logConnectionStats(peerId, peerConnection, retries - 1), 1000);
             }
             return;
         }
