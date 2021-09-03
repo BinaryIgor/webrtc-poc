@@ -15,6 +15,7 @@
     * SDP signaling
     * It can be done by ANY means, SDP information just needs to go to another peer
 * Turn and gelocation: don't we need it in at least a few places in the world ?
+* STUN: only works if at least one side have full cone nat (could propably be done by performing hole-punching first and signaling this fact to peer: https://webrtcforthecurious.com/docs/03-connecting/)
 
 ## Shortcut
 1. A wants speak to B
