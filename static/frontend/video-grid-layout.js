@@ -77,11 +77,11 @@ export class VideoGridLayout {
             const child = this.children[i];
             child.classList.remove(...[REGULAR_SPAN, SPAN_2_2, SPAN_3_2]);
 
-            if (this._isSingleLastInTwoColumngsGrid(i)
+            if (this._isSingleLastInTwoColumnsGrid(i)
                 || this._isFirstOfTwoInThreeColumnsGrid(i)) {
                 child.classList.add(SPAN_2_2);
             } else if (this._isFirstOfTwoInThreeColumnsGrid(i)
-                || this._isSingleLastInThreeColumngsGrid(i)) {
+                || this._isSingleLastInThreeColumnsGrid(i)) {
                 child.classList.add(SPAN_3_2);
             } else {
                 child.classList.add(REGULAR_SPAN);
@@ -89,7 +89,7 @@ export class VideoGridLayout {
         }
     }
 
-    _isSingleLastInTwoColumngsGrid(idx) {
+    _isSingleLastInTwoColumnsGrid(idx) {
         return this._isTwoColumnsGrid() &&
             ((this.childrenCount == 3 && idx == 2) || (!this.landscape && this.childrenCount == 5 && idx == 4));
     }
@@ -99,7 +99,7 @@ export class VideoGridLayout {
             ((this.landscape && this.childrenCount == 5 && idx == 3 || (this.childrenCount == 8 && idx == 6)));
     }
 
-    _isSingleLastInThreeColumngsGrid(idx) {
+    _isSingleLastInThreeColumnsGrid(idx) {
         return this._isThreeColumnsGrid() && this.childrenCount == 7 && idx == 6;
     }
 
