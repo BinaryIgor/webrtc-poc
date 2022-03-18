@@ -18,10 +18,10 @@
 * STUN: only works if at least one side have full cone nat (could propably be done by performing hole-punching first and signaling this fact to peer: https://webrtcforthecurious.com/docs/03-connecting/)
 
 ## Shortcut
-1. A wants speak to B
-2. A creates and offer. It finds all ICE candidates, security, audio/video and all other options.
+1. A wants to speak to B
+2. A creates an offer. It finds all ICE candidates, security, audio/video and all other options.
     It then generates SDP string that contains all of this information. This information is SDP, basically
-3. A signals this information (setting Local SDP) to B (hence need for signaling server)
+3. A signals this information (setting Local SDP) to B (hence a need for signaling server)
 4. B generates its SDP answer (setting its as Local SDP, setting A offer as Remote SDP), after receing A offer
 5. B signals answer to A
 6. Connection is created, A and B can exchange data directly

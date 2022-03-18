@@ -55,13 +55,13 @@ const highQualityVideoConstraints = {
     frameRate: 25
 };
 
-const mediumQualityVideoContraints = {
+const mediumQualityVideoConstraints = {
     width: { ideal: 320, max: 480 },
     height: { ideal: 240, max: 360 },
     frameRate: 20
 };
 
-const lowQualityVideoContraints = {
+const lowQualityVideoConstraints = {
     width: { ideal: 160, max: 200 },
     height: { ideal: 120, max: 200 },
     frameRate: 20
@@ -266,19 +266,19 @@ function updateVideoStreamQuality() {
         return;
     }
     //FIX it: not working on chrome, firefox not supporting constraints (?) almost at all
-    let newContraints;
+    let newConstraints;
     if (peerConnections.size <= 2) {
         console.log("Up to 2 peers, using high quality video");
-        newContraints = highQualityVideoConstraints;
+        newConstraints = highQualityVideoConstraints;
     } else {
         console.log("More than 2 peers, switching to medium quality");
-        newContraints = mediumQualityVideoContraints;
+        newConstraints = mediumQualityVideoConstraints;
     }
 
-    streamConstraints.video = newContraints;
+    streamConstraints.video = newConstraints;
 
     localStream.getVideoTracks().forEach(t => {
-        console.log("Applying new constraints to stream...", newContraints);
+        console.log("Applying new constraints to stream...", newConstraints);
         t.applyConstraints(streamConstraints)
             .then(() => console.log("Constraints applied"))
             .catch(e => console.log("Fail to apply new constraints", e));
