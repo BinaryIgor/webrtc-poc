@@ -77,6 +77,11 @@ public class WebrtcApp {
         httpServer.listen();
 
         log.info("Signal server is running!");
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down...");
+            signalingServer.stop();
+        }));
     }
 
     private static StaticHandler staticHandler(String root) {

@@ -37,6 +37,7 @@ const ROOM_MEMBERS = "ROOM_MEMBERS";
 const PEER_LOG = "PEER_LOG";
 const PING = "PING";
 const PONG = "PONG";
+const SERVER_CLOSING = "SERVER_CLOSING";
 
 const PING_FREQUENCY = 2500;
 const PONG_FREQUENCY = 10000;
@@ -209,6 +210,8 @@ function handleServerMessage(message) {
         }
     } else if (message.type == ROOM_MEMBERS) {
         setupPeerConnections(message.data);
+    } else if (message.type == SERVER_CLOSING) {
+        console.log("Server is closing...");
     } else {
         console.log("Unknown message type from server, ignoring it");
     }

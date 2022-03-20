@@ -17,14 +17,14 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class SignalingServer {
 
+    private final ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(1);
     private final Map<String, SocketConnection> newConnections = new ConcurrentHashMap<>();
     private final Map<String, String> authenticatedConnections = new ConcurrentHashMap<>();
     private final Map<String, SocketConnection> idsConnections = new ConcurrentHashMap<>();
@@ -34,6 +34,7 @@ public class SignalingServer {
     private final int authenticationTimeout;
     private final int inactiveTimeout;
     private final int invalidatorFrequency;
+    private final AtomicBoolean closing = new AtomicBoolean(false);
     private boolean started = false;
 
     public SignalingServer(SignalingServerAuthenticator authenticator,
@@ -59,6 +60,10 @@ public class SignalingServer {
     }
 
     private void onAuthenticated(WebSocketBase authenticated, String userId) {
+        if (closing.get()) {
+            return;
+        }
+
         newConnections.remove(authenticated.textHandlerID());
         authenticatedConnections.put(authenticated.textHandlerID(), userId);
         var previous = idsConnections.put(userId, new SocketConnection(authenticated, Dates.now()));
@@ -77,12 +82,53 @@ public class SignalingServer {
     }
 
     private void start() {
-        Executors.newScheduledThreadPool(1)
-                .scheduleAtFixedRate(this::closeNotAuthenticatedAndNotActiveConnections,
-                        0, invalidatorFrequency, TimeUnit.MILLISECONDS);
+        scheduledExecutor.scheduleAtFixedRate(this::closeNotAuthenticatedAndNotActiveConnections,
+                0, invalidatorFrequency, TimeUnit.MILLISECONDS);
+    }
+
+    public void stop() {
+        try {
+            closing.set(true);
+            scheduledExecutor.shutdown();
+
+            if (!scheduledExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                System.out.println("[WARNING] fail to terminate scheduled executor in 5 seconds, terminating nevertheless");
+            }
+
+            var closingMessage = SocketMessages.serverClosing();
+            idsConnections.values().forEach(c -> {
+                WebSockets.send(c.socket, closingMessage);
+                c.socket.close();
+            });
+
+            waitForSocketsClose();
+        } catch (Exception e) {
+            System.out.println("[ERROR] problem while stopping server...");
+            e.printStackTrace();
+        }
+    }
+
+    private void waitForSocketsClose() throws Exception {
+        var wait = 1000;
+        for (int i = 0; i < 5; i++) {
+            var opened = authenticatedConnections.size();
+            if (opened > 0) {
+                System.out.printf("[INFO] %s connections open, waiting next %d ms", opened, wait);
+                System.out.println();
+                Thread.sleep(wait);
+            } else {
+                System.out.println("[INFO] all connections closed, exiting");
+                break;
+            }
+        }
     }
 
     private void closeNotAuthenticatedAndNotActiveConnections() {
+        if (closing.get()) {
+            System.out.println("Server is closing, not accepting new connections...");
+            return;
+        }
+
         log.info("Active connections: {}", authenticatedConnections.values());
 
         var now = Dates.now();
@@ -204,6 +250,7 @@ public class SignalingServer {
                 });
     }
 
+    //TODO: room modifications should be synchronized
     private void handleRoomMessage(RawSocketMessage message, String id) {
         var idValue = Long.parseLong(id);
         var roomChanged = false;
@@ -274,8 +321,7 @@ public class SignalingServer {
                     .ifPresent(d -> authenticator.authenticate(socket, d));
         } catch (Exception e) {
             log.warn("Unhandled exception while handling message...", e);
-            WebSockets
-                    .send(socket, SocketMessages.failure(SocketMessageType.USER_AUTHENTICATION, Errors.UNKNOWN_ERROR));
+            WebSockets.send(socket, SocketMessages.failure(SocketMessageType.USER_AUTHENTICATION, Errors.UNKNOWN_ERROR));
         }
     }
 

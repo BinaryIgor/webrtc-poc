@@ -29,4 +29,8 @@ public class SocketMessages {
     public static SocketMessage<Empty> pong() {
         return SocketMessage.empty(SocketMessageType.PONG);
     }
+
+    public static SocketMessage<Empty> serverClosing() {
+        return SocketMessage.empty(SocketMessageType.SERVER_CLOSING);
+    }
 }

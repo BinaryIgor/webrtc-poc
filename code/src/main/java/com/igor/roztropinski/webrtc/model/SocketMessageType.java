@@ -5,5 +5,6 @@ public enum SocketMessageType {
     FAILURE, UNKNOWN,
     JOIN_ROOM, LEAVE_ROOM, ROOM_MEMBERS,
     PEER_LOG,
-    PING, PONG
+    PING, PONG,
+    SERVER_CLOSING
 }
